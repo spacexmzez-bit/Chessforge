@@ -1,0 +1,2152 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChessForge • Beginner to Master Academy & Rapid Simulator</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            board: {
+              light: '#EBECD0',
+              dark: '#779556',
+              selected: '#F7EC74',
+              highlight: 'rgba(255, 255, 0, 0.4)',
+              check: 'rgba(239, 68, 68, 0.7)',
+              target: 'rgba(20, 85, 30, 0.35)',
+              capture: 'rgba(239, 68, 68, 0.45)'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* Chessboard Square Grid */
+    .chess-board-grid {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      grid-template-rows: repeat(8, minmax(0, 1fr));
+      aspect-ratio: 1 / 1;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .square-light { background-color: #EBECD0; color: #779556; }
+    .square-dark { background-color: #779556; color: #EBECD0; }
+
+    .theme-slate .square-light { background-color: #cbd5e1; color: #475569; }
+    .theme-slate .square-dark { background-color: #475569; color: #cbd5e1; }
+
+    .theme-wood .square-light { background-color: #f0d9b5; color: #b58863; }
+    .theme-wood .square-dark { background-color: #b58863; color: #f0d9b5; }
+
+    .theme-blue .square-light { background-color: #dee3e6; color: #8ca2ad; }
+    .theme-blue .square-dark { background-color: #8ca2ad; color: #dee3e6; }
+
+    /* Pulse animation for check and correct move */
+    @keyframes checkGlow {
+      0%, 100% { box-shadow: inset 0 0 16px 4px rgba(239, 68, 68, 0.9); }
+      50% { box-shadow: inset 0 0 8px 2px rgba(239, 68, 68, 0.5); }
+    }
+    .in-check { animation: checkGlow 1.4s infinite; }
+
+    @keyframes successGlow {
+      0%, 100% { box-shadow: inset 0 0 16px 4px rgba(34, 197, 94, 0.9); }
+      50% { box-shadow: inset 0 0 8px 2px rgba(34, 197, 94, 0.5); }
+    }
+    .move-success { animation: successGlow 1.2s ease-in-out; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-emerald-500 selection:text-white">
+
+  <!-- SVG Piece Defs & Arrow Markers -->
+  <svg class="hidden" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <g id="piece-P"><g id="white-pawn" class="white pawn"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47 1.47-1.19 2.41-3 2.41-5.03 0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="#fff" stroke="#000" stroke-width="1.5" stroke-linecap="round" /></g></g>
+<g id="piece-p"><g id="black-pawn" class="black pawn"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47 1.47-1.19 2.41-3 2.41-5.03 0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="#000" stroke="#000" stroke-width="1.5" stroke-linecap="round" /></g></g>
+<g id="piece-N"><g id="white-knight" class="white knight" fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18" style="fill:#ffffff; stroke:#000000;" /><path d="M 24,18 C 24.38,20.91 18.45,25.37 16,27 C 13,29 13.18,31.34 11,31 C 9.958,30.06 12.41,27.96 11,28 C 10,28 11.19,29.23 10,30 C 9,30 5.997,31 6,26 C 6,24 12,14 12,14 C 12,14 13.89,12.1 14,10.5 C 13.27,9.506 13.5,8.5 13.5,7.5 C 14.5,6.5 16.5,10 16.5,10 L 18.5,10 C 18.5,10 19.28,8.008 21,7 C 22,7 22,10 22,10" style="fill:#ffffff; stroke:#000000;" /><path d="M 9.5 25.5 A 0.5 0.5 0 1 1 8.5,25.5 A 0.5 0.5 0 1 1 9.5 25.5 z" style="fill:#000000; stroke:#000000;" /><path d="M 15 15.5 A 0.5 1.5 0 1 1 14,15.5 A 0.5 1.5 0 1 1 15 15.5 z" transform="matrix(0.866,0.5,-0.5,0.866,9.693,-5.173)" style="fill:#000000; stroke:#000000;" /></g></g>
+<g id="piece-n"><g id="black-knight" class="black knight" fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18" style="fill:#000000; stroke:#000000;" /><path d="M 24,18 C 24.38,20.91 18.45,25.37 16,27 C 13,29 13.18,31.34 11,31 C 9.958,30.06 12.41,27.96 11,28 C 10,28 11.19,29.23 10,30 C 9,30 5.997,31 6,26 C 6,24 12,14 12,14 C 12,14 13.89,12.1 14,10.5 C 13.27,9.506 13.5,8.5 13.5,7.5 C 14.5,6.5 16.5,10 16.5,10 L 18.5,10 C 18.5,10 19.28,8.008 21,7 C 22,7 22,10 22,10" style="fill:#000000; stroke:#000000;" /><path d="M 9.5 25.5 A 0.5 0.5 0 1 1 8.5,25.5 A 0.5 0.5 0 1 1 9.5 25.5 z" style="fill:#ececec; stroke:#ececec;" /><path d="M 15 15.5 A 0.5 1.5 0 1 1 14,15.5 A 0.5 1.5 0 1 1 15 15.5 z" transform="matrix(0.866,0.5,-0.5,0.866,9.693,-5.173)" style="fill:#ececec; stroke:#ececec;" /><path d="M 24.55,10.4 L 24.1,11.85 L 24.6,12 C 27.75,13 30.25,14.49 32.5,18.75 C 34.75,23.01 35.75,29.06 35.25,39 L 35.2,39.5 L 37.45,39.5 L 37.5,39 C 38,28.94 36.62,22.15 34.25,17.66 C 31.88,13.17 28.46,11.02 25.06,10.5 L 24.55,10.4 z " style="fill:#ececec; stroke:none;" /></g></g>
+<g id="piece-B"><g id="white-bishop" class="white bishop" fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g fill="#fff" stroke-linecap="butt"><path d="M9 36c3.39-.97 10.11.43 13.5-2 3.39 2.43 10.11 1.03 13.5 2 0 0 1.65.54 3 2-.68.97-1.65.99-3 .5-3.39-.97-10.11.46-13.5-1-3.39 1.46-10.11.03-13.5 1-1.354.49-2.323.47-3-.5 1.354-1.94 3-2 3-2zM15 32c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2zM25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0z" /></g><path d="M17.5 26h10M15 30h15m-7.5-14.5v5M20 18h5" stroke-linejoin="miter" /></g></g>
+<g id="piece-b"><g id="black-bishop" class="black bishop" fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 36c3.39-.97 10.11.43 13.5-2 3.39 2.43 10.11 1.03 13.5 2 0 0 1.65.54 3 2-.68.97-1.65.99-3 .5-3.39-.97-10.11.46-13.5-1-3.39 1.46-10.11.03-13.5 1-1.354.49-2.323.47-3-.5 1.354-1.94 3-2 3-2zm6-4c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2zM25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0z" fill="#000" stroke-linecap="butt" /><path d="M17.5 26h10M15 30h15m-7.5-14.5v5M20 18h5" stroke="#fff" stroke-linejoin="miter" /></g></g>
+<g id="piece-R"><g id="white-rook" class="white rook" fill="#fff" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 39h27v-3H9v3zM12 36v-4h21v4H12zM11 14V9h4v2h5V9h5v2h5V9h4v5" stroke-linecap="butt" /><path d="M34 14l-3 3H14l-3-3" /><path d="M31 17v12.5H14V17" stroke-linecap="butt" stroke-linejoin="miter" /><path d="M31 29.5l1.5 2.5h-20l1.5-2.5" /><path d="M11 14h23" fill="none" stroke-linejoin="miter" /></g></g>
+<g id="piece-r"><g id="black-rook" class="black rook" fill="#000" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 39h27v-3H9v3zM12.5 32l1.5-2.5h17l1.5 2.5h-20zM12 36v-4h21v4H12z" stroke-linecap="butt" /><path d="M14 29.5v-13h17v13H14z" stroke-linecap="butt" stroke-linejoin="miter" /><path d="M14 16.5L11 14h23l-3 2.5H14zM11 14V9h4v2h5V9h5v2h5V9h4v5H11z" stroke-linecap="butt" /><path d="M12 35.5h21M13 31.5h19M14 29.5h17M14 16.5h17M11 14h23" fill="none" stroke="#fff" stroke-width="1" stroke-linejoin="miter" /></g></g>
+<g id="piece-Q"><g id="white-queen" class="white queen" fill="#fff" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM24.5 7.5a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM41 12a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM16 8.5a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM33 9a2 2 0 1 1-4 0 2 2 0 1 1 4 0z" /><path d="M9 26c8.5-1.5 21-1.5 27 0l2-12-7 11V11l-5.5 13.5-3-15-3 15-5.5-14V25L7 14l2 12zM9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1.5 2.5-1.5 2.5-1.5 1.5.5 2.5.5 2.5 6.5 1 16.5 1 23 0 0 0 1.5-1 0-2.5 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4-8.5-1.5-18.5-1.5-27 0z" stroke-linecap="butt" /><path d="M11.5 30c3.5-1 18.5-1 22 0M12 33.5c6-1 15-1 21 0" fill="none" /></g></g>
+<g id="piece-q"><g id="black-queen" class="black queen" fill="#000" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g fill="#000" stroke="none"><circle cx="6" cy="12" r="2.75" /><circle cx="14" cy="9" r="2.75" /><circle cx="22.5" cy="8" r="2.75" /><circle cx="31" cy="9" r="2.75" /><circle cx="39" cy="12" r="2.75" /></g><path d="M9 26c8.5-1.5 21-1.5 27 0l2.5-12.5L31 25l-.3-14.1-5.2 13.6-3-14.5-3 14.5-5.2-13.6L14 25 6.5 13.5 9 26zM9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1.5 2.5-1.5 2.5-1.5 1.5.5 2.5.5 2.5 6.5 1 16.5 1 23 0 0 0 1.5-1 0-2.5 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4-8.5-1.5-18.5-1.5-27 0z" stroke-linecap="butt" /><path d="M11 38.5a35 35 1 0 0 23 0" fill="none" stroke-linecap="butt" /><path d="M11 29a35 35 1 0 1 23 0M12.5 31.5h20M11.5 34.5a35 35 1 0 0 22 0M10.5 37.5a35 35 1 0 0 24 0" fill="none" stroke="#fff" /></g></g>
+<g id="piece-K"><g id="white-king" class="white king" fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22.5 11.63V6M20 8h5" stroke-linejoin="miter" /><path d="M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5" fill="#fff" stroke-linecap="butt" stroke-linejoin="miter" /><path d="M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V27v-3.5c-3.5-7.5-13-10.5-16-4-3 6 5 10 5 10V37z" fill="#fff" /><path d="M11.5 30c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0" /></g></g>
+<g id="piece-k"><g id="black-king" class="black king" fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22.5 11.63V6" stroke-linejoin="miter" /><path d="M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5" fill="#000" stroke-linecap="butt" stroke-linejoin="miter" /><path d="M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V27v-3.5c-3.5-7.5-13-10.5-16-4-3 6 5 10 5 10V37z" fill="#000" /><path d="M20 8h5" stroke-linejoin="miter" /><path d="M32 29.5s8.5-4 6.03-9.65C34.15 14 25 18 22.5 24.5l.01 2.1-.01-2.1C20 18 9.906 14 6.997 19.85c-2.497 5.65 4.853 9 4.853 9M11.5 30c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0" stroke="#fff" /></g></g>
+      <!-- Arrow Markers -->
+      <marker id="arrowhead-emerald" markerWidth="6" markerHeight="6" refX="4" refY="3" orient="auto">
+        <path d="M 0 0 L 6 3 L 0 6 z" fill="#10b981" />
+      </marker>
+      <marker id="arrowhead-amber" markerWidth="6" markerHeight="6" refX="4" refY="3" orient="auto">
+        <path d="M 0 0 L 6 3 L 0 6 z" fill="#f59e0b" />
+      </marker>
+      <marker id="arrowhead-red" markerWidth="6" markerHeight="6" refX="4" refY="3" orient="auto">
+        <path d="M 0 0 L 6 3 L 0 6 z" fill="#ef4444" />
+      </marker>
+      <marker id="arrowhead-sky" markerWidth="6" markerHeight="6" refX="4" refY="3" orient="auto">
+        <path d="M 0 0 L 6 3 L 0 6 z" fill="#38bdf8" />
+      </marker>
+    </defs>
+  </svg>
+
+  <!-- Navigation Header -->
+  <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 px-4 py-2.5">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Brand -->
+      <div class="flex items-center gap-2.5 cursor-pointer" id="brand-home-btn">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12l-7-7-7 7m14 0v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7m14 0h-3m-8 0H5"></path>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">ChessForge</span>
+            <span class="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Pro</span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">From Movement to Master</p>
+        </div>
+      </div>
+
+      <!-- Mode Selector Tabs -->
+      <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-sm">
+        <button id="nav-course-btn" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-medium transition-all bg-emerald-600 text-white shadow-sm">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+          <span>Academy</span>
+          <span id="header-progress-badge" class="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-emerald-700/80 text-emerald-100 font-mono">0%</span>
+        </button>
+        <button id="nav-rapid-btn" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-medium text-slate-400 hover:text-slate-200 transition-all">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          <span>Rapid Mock AI</span>
+        </button>
+      </div>
+
+      <!-- Quick Actions / Utilities -->
+      <div class="flex items-center gap-2">
+        <button id="toggle-sound-btn" title="Toggle Sound (Mute/Unmute)" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition-all">
+          <svg id="sound-on-icon" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+          <svg id="sound-off-icon" class="w-4 h-4 hidden text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+        </button>
+        <button id="toggle-arrows-btn" title="Toggle Board Arrows" class="p-2 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60 transition-all">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        </button>
+        <button id="open-settings-btn" title="Settings, Backup & Restore" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition-all">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN APP CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-6 flex flex-col">
+
+    <!-- VIEW 1: COURSE ACADEMY -->
+    <div id="course-view" class="flex-1 flex flex-col gap-5">
+      
+      <!-- Top Level Bar / Carousel -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-lg">
+        <div class="flex items-center justify-between gap-3 mb-2 px-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs uppercase font-bold tracking-wider text-emerald-400">Curriculum Path</span>
+            <span class="text-slate-500">•</span>
+            <span id="current-level-title-badge" class="text-xs font-semibold text-slate-300">Level 1: Board & Rules</span>
+          </div>
+          <div class="text-xs text-slate-400">
+            Progress: <span id="curriculum-completion-stats" class="text-emerald-400 font-mono font-bold">0 / 7 Levels</span>
+          </div>
+        </div>
+
+        <!-- Level Pills Scrollable Container -->
+        <div class="flex gap-2 overflow-x-auto pb-1" id="level-pills-container">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+      <!-- Level & Lesson Controller Bar -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2" id="lesson-tabs-container">
+          <!-- Populated dynamically: 1.1, 1.2, 1.3... + Exam -->
+        </div>
+
+        <!-- 4-Phase Progress Indicators -->
+        <div class="flex items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs" id="phase-stepper">
+          <button data-phase="lesson" class="px-2.5 py-1 rounded font-medium bg-emerald-600 text-white transition-all phase-tab-btn">1. Theory</button>
+          <button data-phase="practice" class="px-2.5 py-1 rounded font-medium text-slate-400 hover:text-slate-200 transition-all phase-tab-btn">2. Practice</button>
+          <button data-phase="test" class="px-2.5 py-1 rounded font-medium text-slate-400 hover:text-slate-200 transition-all phase-tab-btn">3. Test</button>
+          <button data-phase="exam" class="px-2.5 py-1 rounded font-medium text-slate-400 hover:text-slate-200 transition-all phase-tab-btn">4. Exam</button>
+        </div>
+      </div>
+
+      <!-- Main Study Workspace: Interactive Board + Study Card -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-1">
+        
+        <!-- Left: Interactive Chess Board Panel (5 cols on lg) -->
+        <div class="lg:col-span-6 flex flex-col items-center gap-3">
+          
+          <!-- Board Outer Shell -->
+          <div class="relative w-full max-w-[500px] aspect-square rounded-2xl overflow-hidden shadow-2xl border-4 border-slate-800 bg-slate-900 select-none" id="course-board-wrapper">
+            
+            <!-- SVG Arrow & Overlay Canvas Layer -->
+            <svg id="course-arrows-svg" class="absolute inset-0 w-full h-full pointer-events-none z-20"></svg>
+            
+            <!-- Chessboard Square Grid (64 squares) -->
+            <div id="course-chessboard" class="chess-board-grid w-full h-full relative z-10">
+              <!-- Rendered via JS -->
+            </div>
+
+          </div>
+
+          <!-- Board Utility Controls -->
+          <div class="flex items-center justify-between w-full max-w-[500px] px-2 py-1 bg-slate-900/60 border border-slate-800/80 rounded-xl text-xs text-slate-400">
+            <div class="flex items-center gap-1.5">
+              <button id="course-flip-board-btn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all" title="Flip Board">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path></svg>
+                <span>Flip</span>
+              </button>
+              <button id="course-undo-btn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all" title="Undo Move">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                <span>Undo</span>
+              </button>
+              <button id="course-reset-btn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all" title="Reset Position">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                <span>Reset</span>
+              </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <span id="course-turn-indicator" class="flex items-center gap-1.5 font-medium text-slate-300">
+                <span class="w-2.5 h-2.5 rounded-full bg-white border border-slate-600 inline-block"></span>
+                <span>White to move</span>
+              </span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right: Lesson Theory / Interactive Guidance / Exam Card (6 cols on lg) -->
+        <div class="lg:col-span-6 flex flex-col gap-4">
+          
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl min-h-[440px] flex flex-col justify-between" id="course-card-container">
+            
+            <!-- Top Content Section -->
+            <div class="space-y-4" id="course-card-content">
+              <!-- Injected by active phase handler -->
+            </div>
+
+            <!-- Bottom Action Footer -->
+            <div class="pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3" id="course-card-actions">
+              <!-- Buttons: Next, Hint, Proceed, etc. -->
+            </div>
+
+          </div>
+
+          <!-- Dynamic In-Game Tip / Feedback Card -->
+          <div id="course-feedback-box" class="hidden rounded-xl p-4 border transition-all">
+            <!-- Dynamic feedback messages -->
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- VIEW 2: RAPID MOCK GAME (AI SIMULATOR) -->
+    <div id="rapid-view" class="hidden flex-1 flex flex-col gap-5">
+      
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left: Rapid Chessboard & Player Clocks (7 cols on lg) -->
+        <div class="lg:col-span-7 flex flex-col items-center gap-2">
+          
+          <!-- Top Opponent Card (AI) -->
+          <div class="w-full max-w-[500px] bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-slate-800 border-2 border-indigo-500/40 flex items-center justify-center font-bold text-indigo-400 text-sm shadow" id="ai-avatar">
+                🤖
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span id="ai-name-label" class="font-bold text-sm text-slate-200">Bot Dumbass</span>
+                  <span id="ai-elo-badge" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">300 Elo</span>
+                </div>
+                <div class="flex items-center gap-1.5 text-xs text-slate-400" id="ai-captured-box">
+                  <span class="text-[11px] text-slate-500">Captured:</span>
+                  <div class="flex items-center gap-0.5" id="ai-captured-pieces"></div>
+                  <span id="ai-material-diff" class="font-mono text-emerald-400 text-xs font-bold ml-1"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- AI Clock -->
+            <div class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1 font-mono text-lg font-bold text-slate-300" id="ai-clock-display">
+              10:00
+            </div>
+          </div>
+
+          <!-- Board Outer Container with Optional Eval Bar -->
+          <div class="flex items-center gap-2 w-full max-w-[500px]">
+            
+            <!-- Real-time Vertical Evaluation Bar -->
+            <div id="eval-bar-wrapper" class="w-3 self-stretch bg-slate-800 rounded-full overflow-hidden border border-slate-700 flex flex-col justify-end relative shadow-inner">
+              <div id="eval-bar-fill" class="w-full bg-white transition-all duration-300" style="height: 50%;"></div>
+            </div>
+
+            <!-- Chessboard Shell -->
+            <div class="relative flex-1 aspect-square rounded-2xl overflow-hidden shadow-2xl border-4 border-slate-800 bg-slate-900 select-none" id="rapid-board-wrapper">
+              <svg id="rapid-arrows-svg" class="absolute inset-0 w-full h-full pointer-events-none z-20"></svg>
+              <div id="rapid-chessboard" class="chess-board-grid w-full h-full relative z-10">
+                <!-- Rendered via JS -->
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Bottom User Card -->
+          <div class="w-full max-w-[500px] bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-emerald-950 border-2 border-emerald-500/40 flex items-center justify-center font-bold text-emerald-400 text-sm shadow">
+                👤
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-sm text-slate-200">You (Student)</span>
+                  <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Rapid</span>
+                </div>
+                <div class="flex items-center gap-1.5 text-xs text-slate-400" id="user-captured-box">
+                  <span class="text-[11px] text-slate-500">Captured:</span>
+                  <div class="flex items-center gap-0.5" id="user-captured-pieces"></div>
+                  <span id="user-material-diff" class="font-mono text-emerald-400 text-xs font-bold ml-1"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- User Clock -->
+            <div class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1 font-mono text-lg font-bold text-slate-200" id="user-clock-display">
+              10:00
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right: Rapid Game Settings, In-Game Tips & Notation (5 cols on lg) -->
+        <div class="lg:col-span-5 flex flex-col gap-4">
+          
+          <!-- Game Match Setup & Actions -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-4">
+            
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                <span>⚔️ Rapid Mode Match</span>
+              </h3>
+              <div class="flex items-center gap-1">
+                <button id="rapid-resign-btn" class="text-xs px-2.5 py-1 rounded bg-red-950/60 hover:bg-red-900/60 border border-red-500/30 text-red-400 transition-all">Resign</button>
+                <button id="rapid-new-game-btn" class="text-xs px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 font-semibold text-white transition-all shadow">New Match</button>
+              </div>
+            </div>
+
+            <!-- AI Level & Time Controls -->
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <label class="block text-slate-400 mb-1 font-semibold">Opponent Tier (1-7):</label>
+                <select id="rapid-ai-level-select" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500">
+                  <option value="1">Level 1: Dumbass (~300 Elo)</option>
+                  <option value="2">Level 2: Novice (~600 Elo)</option>
+                  <option value="3" selected>Level 3: Casual (~900 Elo)</option>
+                  <option value="4">Level 4: Apprentice (~1200 Elo)</option>
+                  <option value="5">Level 5: Intermediate (~1500 Elo)</option>
+                  <option value="6">Level 6: Advanced (~1800 Elo)</option>
+                  <option value="7">Level 7: Extreme (~2100+ Elo)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-slate-400 mb-1 font-semibold">Time Control:</label>
+                <select id="rapid-time-select" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500">
+                  <option value="600,0" selected>10 min Rapid (10+0)</option>
+                  <option value="900,10">15|10 Rapid (15+10)</option>
+                  <option value="300,5">5|5 Blitz (5+5)</option>
+                  <option value="0,0">Casual (No Clock)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Side Selection & Toggles -->
+            <div class="flex items-center justify-between gap-2 text-xs pt-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-slate-400">Play As:</span>
+                <button id="side-white-btn" class="px-2 py-0.5 rounded bg-emerald-600 text-white font-medium">White</button>
+                <button id="side-black-btn" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-medium hover:text-slate-200">Black</button>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <label class="flex items-center gap-1.5 cursor-pointer text-slate-400 hover:text-slate-200">
+                  <input type="checkbox" id="toggle-eval-bar-chk" checked class="rounded border-slate-700 text-emerald-500 focus:ring-0">
+                  <span>Eval Bar</span>
+                </label>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Real-Time Coach / In-Game Tips Card -->
+          <div class="bg-gradient-to-br from-slate-900 to-emerald-950/30 border border-emerald-500/20 rounded-2xl p-4 shadow-lg">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-emerald-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <span>💡 In-Game Tactical Coach</span>
+              </span>
+            </div>
+            <p id="coach-tip-text" class="text-xs text-slate-300 leading-relaxed">
+              "Game initialized. Control the central squares (e4/d4), develop your knights before bishops, and prepare early castling!"
+            </p>
+          </div>
+
+          <!-- Move History Notation Log -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg flex-1 flex flex-col min-h-[180px]">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Move Notation</span>
+              <span id="move-count-label" class="text-xs font-mono text-slate-500">0 Moves</span>
+            </div>
+            <div class="flex-1 overflow-y-auto max-h-[180px] font-mono text-xs text-slate-300 divide-y divide-slate-800/60" id="move-history-table">
+              <div class="py-2 text-center text-slate-500 italic">No moves played yet</div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- SETTINGS & BACKUP MODAL -->
+  <div id="settings-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+      
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="font-bold text-lg text-slate-100 flex items-center gap-2">
+          <span>⚙️ Settings & Progress Backup</span>
+        </h3>
+        <button id="close-settings-btn" class="text-slate-400 hover:text-slate-200 text-lg font-bold">✕</button>
+      </div>
+
+      <!-- Backup / Restore Section -->
+      <div class="space-y-3">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-emerald-400">Save & Cross-Device Sync</h4>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Your progress is automatically saved to your browser's local storage. Export a JSON backup to transfer your mastery to your phone or laptop!
+        </p>
+        <div class="flex items-center gap-2">
+          <button id="export-json-btn" class="flex-1 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-all shadow">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span>Export Progress (.JSON)</span>
+          </button>
+          <label class="flex-1 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-medium text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            <span>Import Progress</span>
+            <input type="file" id="import-json-input" accept=".json" class="hidden">
+          </label>
+        </div>
+      </div>
+
+      <!-- Board Theme Selection -->
+      <div class="space-y-2 border-t border-slate-800 pt-3">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300">Board Theme</h4>
+        <div class="grid grid-cols-4 gap-2 text-xs">
+          <button data-theme="emerald" class="theme-choice-btn py-1.5 px-2 rounded-lg bg-emerald-950 border-2 border-emerald-500 text-emerald-300 font-medium text-center">Emerald</button>
+          <button data-theme="wood" class="theme-choice-btn py-1.5 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 font-medium text-center">Wood</button>
+          <button data-theme="slate" class="theme-choice-btn py-1.5 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 font-medium text-center">Slate</button>
+          <button data-theme="blue" class="theme-choice-btn py-1.5 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 font-medium text-center">Ocean</button>
+        </div>
+      </div>
+
+      <!-- Reset Progress -->
+      <div class="border-t border-slate-800 pt-3 flex items-center justify-between">
+        <button id="reset-all-progress-btn" class="text-xs text-red-400 hover:text-red-300 underline">Reset All Progress</button>
+        <button id="close-modal-done-btn" class="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200">Done</button>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <!-- Toast Notification Container -->
+  <div id="app-toast" class="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl font-medium text-xs hidden flex items-center gap-2 border transition-all duration-300 max-w-sm"></div>
+
+  <!-- Custom In-Page Confirm Dialog -->
+  <div id="confirm-dialog-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl">
+      <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+        <span>⚠️ Confirmation Required</span>
+      </h3>
+      <p id="confirm-dialog-msg" class="text-xs text-slate-300 leading-relaxed"></p>
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+        <button id="confirm-dialog-cancel" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">Cancel</button>
+        <button id="confirm-dialog-ok" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-Page Match GameOver Modal -->
+  <div id="game-over-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl">
+      <div id="game-over-icon" class="text-4xl">🏆</div>
+      <h3 id="game-over-title" class="text-xl font-bold text-slate-100">Match Concluded</h3>
+      <p id="game-over-desc" class="text-xs text-slate-300 leading-relaxed"></p>
+      <div class="flex items-center justify-center gap-2 pt-2 border-t border-slate-800">
+        <button id="game-over-rematch-btn" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs shadow">Play Rematch</button>
+        <button id="game-over-close-btn" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold text-slate-300 text-xs">Review Board</button>
+      </div>
+    </div>
+  </div>
+
+<!-- EMBEDDED CURRICULUM DATA -->
+  <script>
+    const CURRICULUM = [{"id": "level-1", "title": "Level 1: Board & Rules Fundamentals", "description": "Master coordinates, special rules, mating vs. draws, piece values, and trading math.", "lessons": [{"id": "1.1", "title": "1.1 Coordinates & Board Orientation", "concept": "Board Geometry & The 'White on Right' Rule", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Every chess journey begins with setting up the battlefield correctly. A chessboard has <strong>64 squares</strong> arranged in an 8x8 grid of alternating light and dark squares.</p>\n                        <div class='bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-4'>\n                            <h4 class='text-emerald-400 font-bold mb-1 flex items-center gap-2'>\n                                <span>Rule #1: White on Right</span>\n                            </h4>\n                            <p class='text-sm text-slate-300'>The bottom-right corner square on each player's side must ALWAYS be a <strong>light square</strong> (h1 for White, a8 for Black). If it's dark, the board is turned 90 degrees sideways!</p>\n                        </div>\n                        <div class='grid grid-cols-1 md:grid-cols-2 gap-3 text-sm'>\n                            <div class='bg-slate-800/80 p-3 rounded-lg border border-slate-700'>\n                                <span class='text-amber-400 font-bold'>Ranks (Horizontal):</span> Numbered <strong>1 through 8</strong>. White's army sets up on ranks 1 and 2; Black's army sets up on ranks 7 and 8.\n                            </div>\n                            <div class='bg-slate-800/80 p-3 rounded-lg border border-slate-700'>\n                                <span class='text-sky-400 font-bold'>Files (Vertical):</span> Lettered <strong>a through h</strong> from left to right from White's perspective.\n                            </div>\n                        </div>\n                        <p class='text-sm text-slate-400'>Each individual square is named by its file letter followed by its rank number, e.g., <strong>e4</strong>, <strong>d5</strong>, <strong>f3</strong>. The four squares in the very middle (<span class='text-amber-300 font-semibold'>e4, d4, e5, d5</span>) form the crucial <strong>Center</strong>.</p>\n                    </div>\n                ", "demoFen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1", "demoArrows": [["e2", "e4", "emerald"], ["d2", "d4", "amber"]], "practice": {"fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "side": "w", "objective": "Stake your claim in the center! Move your King's Pawn to the central square e4.", "solution": ["e2e4"], "hints": ["Click on the pawn in front of your King (e2) and move it forward two squares to e4.", "The target square is e4."], "explanation": "Playing 1.e4 immediately controls the key central squares d5 and f5 and frees diagonals for your Queen and King's Bishop.", "arrows": [["e2", "e4", "emerald"]]}, "test": {"fen": "rnbqkbnr/pppp1ppp/8/4p3/8/5N2/PPPPPPPP/RNBQKB1R w KQkq - 0 2", "side": "w", "prompt": "White's Knight on f3 is ready to strike. Identify Black's unprotected central pawn and capture it!", "solution": ["f3e5"], "hints": ["Look at the e5 square. Black's pawn on e5 has no defenders.", "Capture on e5 with your Knight."], "wrongFeedback": "That move misses the free central pawn. Black left e5 completely undefended!", "successExplanation": "Spotting free central pawns wins material early. 1.Nxe5 claims a center square and puts you ahead +1 pawn."}}, {"id": "1.2", "title": "1.2 Special Rules: Castling, En Passant & Promotion", "concept": "The Three Special Moves That Beginners Overlook", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Chess has three unique rules that break standard movement patterns. Mastering them is essential for king safety and converting endgames.</p>\n                        <div class='space-y-3'>\n                            <div class='bg-slate-800/90 border border-slate-700 p-3 rounded-lg'>\n                                <h4 class='text-amber-400 font-bold text-sm mb-1'>1. Castling (Kingside & Queenside)</h4>\n                                <p class='text-xs text-slate-300'>The only move where two pieces move at once! King jumps 2 squares toward a Rook; the Rook hops over the King. <strong>Requirements:</strong> Neither King nor Rook has moved; no pieces between them; King cannot castle out of check, through check, or into check.</p>\n                            </div>\n                            <div class='bg-slate-800/90 border border-slate-700 p-3 rounded-lg'>\n                                <h4 class='text-sky-400 font-bold text-sm mb-1'>2. En Passant (In Passing)</h4>\n                                <p class='text-xs text-slate-300'>When your pawn is on your 5th rank (e.g. e5) and an opponent pawn leaps 2 squares past you (e.g. d7-d5), you can capture it diagonally (exd6) as if it only moved 1 square! <strong>Crucial timing:</strong> You MUST play en passant on the very next turn, or the right is permanently lost.</p>\n                            </div>\n                            <div class='bg-slate-800/90 border border-slate-700 p-3 rounded-lg'>\n                                <h4 class='text-emerald-400 font-bold text-sm mb-1'>3. Pawn Promotion & Underpromotion</h4>\n                                <p class='text-xs text-slate-300'>When a pawn reaches the 8th rank, it transforms immediately into a Queen, Rook, Bishop, or Knight. While Queens are promoted 98% of the time, <strong>underpromoting</strong> to a Knight (for a surprise check/fork) or Rook (to avoid stalemate) can win games!</p>\n                            </div>\n                        </div>\n                    </div>\n                ", "demoFen": "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1", "demoArrows": [["e1", "g1", "emerald"], ["h1", "f1", "emerald"]], "practice": {"fen": "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 1 5", "side": "w", "objective": "Castle your King to safety! Move your King from e1 to g1.", "solution": ["e1g1"], "hints": ["Click the King on e1 and move it two squares to the right to g1.", "The Rook will automatically jump over to f1."], "explanation": "Castling achieves two vital goals in one turn: it shields your King behind pawns and activates your Rook toward the center.", "arrows": [["e1", "g1", "emerald"]]}, "test": {"fen": "rnbqkbnr/pp1p1ppp/8/2pPp3/8/8/PPP1PPPP/RNBQKBNR w KQkq e6 0 2", "side": "w", "prompt": "Black just pushed their pawn two squares from e7 to e5. Execute the En Passant capture!", "solution": ["d5e6"], "hints": ["Move your d5 pawn diagonally forward to e6.", "The capture square is e6."], "wrongFeedback": "En passant must capture on e6 behind the opponent's pawn on the exact next turn!", "successExplanation": "Brilliant! En passant eliminated Black's pawn on e5 and advanced your pawn into enemy territory."}}, {"id": "1.3", "title": "1.3 Check, Checkmate & Stalemate", "concept": "Winning the Game vs. Accidental Draws", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>The ultimate objective in chess is to trap the enemy King. However, confusing checkmate with stalemate is the most heartbreaking beginner mistake.</p>\n                        <div class='grid grid-cols-1 md:grid-cols-2 gap-3'>\n                            <div class='bg-red-950/40 border border-red-500/40 p-3 rounded-lg'>\n                                <h4 class='text-red-400 font-bold mb-1'>Checkmate (Win)</h4>\n                                <ul class='text-xs space-y-1 list-disc list-inside text-slate-300'>\n                                    <li>The King <strong>IS</strong> in check (under direct attack).</li>\n                                    <li>The King has <strong>NO legal moves</strong> to escape, block, or capture.</li>\n                                    <li>Result: <strong>Game Over \u2014 You Win! (1 - 0)</strong></li>\n                                </ul>\n                            </div>\n                            <div class='bg-amber-950/40 border border-amber-500/40 p-3 rounded-lg'>\n                                <h4 class='text-amber-400 font-bold mb-1'>Stalemate (Draw)</h4>\n                                <ul class='text-xs space-y-1 list-disc list-inside text-slate-300'>\n                                    <li>The King is <strong>NOT</strong> in check.</li>\n                                    <li>The opponent has <strong>NO legal moves</strong> anywhere on the board.</li>\n                                    <li>Result: <strong>Instant Draw! (\u00bd - \u00bd)</strong> Even if you are +20 points ahead!</li>\n                                </ul>\n                            </div>\n                        </div>\n                        <div class='bg-slate-800 p-3 rounded-lg border border-slate-700 text-xs text-slate-300'>\n                            <span class='text-sky-400 font-bold'>Other Draw Conditions:</span> <strong>Insufficient Material</strong> (King vs King, King+Bishop vs King, King+Knight vs King), <strong>Threefold Repetition</strong> (exact same board position occurring 3 times), and the <strong>50-Move Rule</strong> (50 consecutive turns without a pawn move or capture).\n                        </div>\n                    </div>\n                ", "demoFen": "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", "demoArrows": [["e1", "e8", "red"]], "practice": {"fen": "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", "side": "w", "objective": "Deliver Checkmate! Deliver the back-rank strike with your Rook.", "solution": ["e1e8"], "hints": ["Move the Rook on e1 all the way to e8.", "Black's King is blocked by its own pawns."], "explanation": "Rook to e8 is Checkmate! The Black King is under attack and cannot escape because f7, g7, and h7 are blocked by its own pawns.", "arrows": [["e1", "e8", "emerald"]]}, "test": {"fen": "k7/2Q5/1K6/8/8/8/8/8 w - - 0 1", "side": "w", "prompt": "CRITICAL TEST: White is completely winning. Find the move that delivers CHECKMATE, avoiding stalemate!", "solution": ["c7b7", "c7c8", "c7d8"], "hints": ["If you move your King, Black has no moves and is stalemated! Attack the King directly with checkmate.", "Put the Queen directly in front of or next to the Black King: Qb7# or Qc8#."], "wrongFeedback": "Be careful! Any move that does not put the King in check results in a heartbreaking STALEMATE draw!", "successExplanation": "Checkmate delivered! Always ensure the enemy King is placed in check when delivering the final blow."}}, {"id": "1.4", "title": "1.4 Piece Values & Trading Math", "concept": "Calculating Material Balance Before You Trade", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Every chess piece has a standard point value based on its mobility and attacking power. Memorizing these values is how you calculate whether a trade is favorable.</p>\n                        <div class='overflow-x-auto'>\n                            <table class='w-full text-left text-xs bg-slate-800/80 rounded-lg border border-slate-700'>\n                                <thead class='bg-slate-700/60 text-slate-200 font-semibold'>\n                                    <tr>\n                                        <th class='p-2'>Piece</th>\n                                        <th class='p-2'>Value</th>\n                                        <th class='p-2'>Role & Classification</th>\n                                    </tr>\n                                </thead>\n                                <tbody class='divide-y divide-slate-700 text-slate-300'>\n                                    <tr><td class='p-2 font-bold text-amber-300'>Pawn (P)</td><td class='p-2 font-bold'>1</td><td>The soul of chess; frontline foot soldier</td></tr>\n                                    <tr><td class='p-2 font-bold text-sky-300'>Knight (N)</td><td class='p-2 font-bold'>3</td><td>Minor piece; hops over obstacles; tricky forks</td></tr>\n                                    <tr><td class='p-2 font-bold text-emerald-300'>Bishop (B)</td><td class='p-2 font-bold'>3</td><td>Minor piece; long-range diagonal sniper</td></tr>\n                                    <tr><td class='p-2 font-bold text-purple-300'>Rook (R)</td><td class='p-2 font-bold'>5</td><td>Major piece; open ranks and files</td></tr>\n                                    <tr><td class='p-2 font-bold text-pink-300'>Queen (Q)</td><td class='p-2 font-bold'>9</td><td>Major piece; supreme attacking power</td></tr>\n                                    <tr><td class='p-2 font-bold text-yellow-400'>King (K)</td><td class='p-2 font-bold'>\u221e</td><td>Priceless; losing the King loses the game</td></tr>\n                                </tbody>\n                            </table>\n                        </div>\n                        <div class='bg-slate-800/90 border border-slate-700 p-3 rounded-lg text-xs space-y-1'>\n                            <h4 class='text-amber-400 font-bold'>The Math of \"The Exchange\":</h4>\n                            <p>Trading a Minor Piece (Knight/Bishop = 3) for a Major Piece (Rook = 5) is called <strong>Winning the Exchange</strong> (+2 points in your favor). Trading two minor pieces (3+3=6) for a Rook + Pawn (5+1=6) is an even trade.</p>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqk2r/pppp1ppp/2n5/4p3/1b2P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 2 4", "demoArrows": [["b4", "c3", "amber"]], "practice": {"fen": "r1bqk2r/pppp1ppp/2n5/4p3/3Pn3/2N2N2/PPP1PPPP/R1BQKB1R w KQkq - 0 5", "side": "w", "objective": "Black's Knight on e4 has invaded. Win material by capturing it with your Knight on c3 (3 points for 0!).", "solution": ["c3e4"], "hints": ["Use your Knight on c3 to capture the Knight on e4.", "Calculate: 3 points won for free."], "explanation": "You captured Black's active knight on e4, winning 3 points of material cleanly.", "arrows": [["c3", "e4", "emerald"]]}, "test": {"fen": "4r1k1/5ppp/8/8/8/8/4R3/4K3 w - - 0 1", "side": "w", "prompt": "Calculate the exchange! Capture Black's Rook on e8 with your Rook on e2 to enter an easily won endgame.", "solution": ["e2e8"], "hints": ["Play Rxe8+.", "Trading Rooks when you have an extra King in endgames simplifies the win."], "wrongFeedback": "Trading Rooks with Rxe8+ immediately seals victory by removing Black's only piece!", "successExplanation": "Rxe8# is actually Checkmate! A rook trade that ends in checkmate is the sweetest trade in chess."}}, {"id": "1.5", "title": "1.5 Relative Strengths: Bishops, Knights & Open Files", "concept": "Why 3 Points Does Not Always Equal 3 Points", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>While Knights and Bishops are both mathematically worth 3 points, their actual effectiveness depends heavily on the board position.</p>\n                        <div class='grid grid-cols-1 md:grid-cols-2 gap-3 text-xs'>\n                            <div class='bg-emerald-950/30 border border-emerald-500/30 p-3 rounded-lg'>\n                                <h4 class='text-emerald-400 font-bold mb-1'>Bishops Thrive in Open Boards</h4>\n                                <p>When center pawns are traded off, long diagonals open up. A Bishop can zip across the entire board in one move. Having <strong>both Bishops (The Bishop Pair)</strong> is universally recognized as a +0.5 pawn dynamic advantage.</p>\n                            </div>\n                            <div class='bg-sky-950/30 border border-sky-500/30 p-3 rounded-lg'>\n                                <h4 class='text-sky-400 font-bold mb-1'>Knights Dominate Closed Boards</h4>\n                                <p>When center pawns are locked in rigid chains, Bishops are stifled. Knights, however, can jump over friendly and enemy pawns alike, landing on devastating <strong>outposts</strong>.</p>\n                            </div>\n                        </div>\n                        <div class='bg-purple-950/30 border border-purple-500/30 p-3 rounded-lg text-xs'>\n                            <h4 class='text-purple-300 font-bold mb-1'>Rooks Belong on Open Files</h4>\n                            <p>An <strong>open file</strong> has no pawns on it; a <strong>semi-open file</strong> has only opponent pawns. Placing your Rooks on open files lets them penetrate into the enemy rear ranks.</p>\n                        </div>\n                    </div>\n                ", "demoFen": "r4rk1/ppp2ppp/8/8/8/8/PPP2PPP/R4RK1 w - - 0 1", "demoArrows": [["a1", "d1", "emerald"], ["d1", "d8", "emerald"]], "practice": {"fen": "r4rk1/ppp2ppp/8/8/8/8/PPP2PPP/R4RK1 w - - 0 1", "side": "w", "objective": "Seize the open d-file! Move your Rook from a1 to d1 to dominate the central highway.", "solution": ["a1d1"], "hints": ["Move your a1 Rook to the completely open d-file (d1).", "Target square is d1."], "explanation": "Controlling open files with rooks restricts the enemy and prepares invasion onto the 7th rank.", "arrows": [["a1", "d1", "emerald"]]}, "test": {"fen": "r1b1k2r/pppp1ppp/8/2b1P3/4n3/2B5/PPP2PPP/RN2KB1R w KQkq - 0 9", "side": "w", "prompt": "Black's Knight and Bishop are coordinating against your f2 pawn. Play the active defense: develop your Knight to d2 to challenge Black's centralized horse!", "solution": ["b1d2"], "hints": ["Move the knight from b1 to d2.", "Contesting the center with minor pieces relieves pressure on f2."], "wrongFeedback": "Moving the knight to d2 challenges the powerful e4 knight while developing your last minor piece.", "successExplanation": "Excellent! You developed your minor piece, challenged Black's outpost, and prepared queenside castling."}}], "exam": [{"id": "ex-1-1", "fen": "r1bqk2r/pppp1ppp/2n2n2/4p3/1bB1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 1 5", "side": "w", "prompt": "Scenario 1 of 4: White is in check from the Bishop on b4. Block the check with a developing move!", "solution": ["c1d2", "b1c3", "c2c3", "b1d2"], "hint": "Develop a piece to block the line between the b4 bishop and your e1 king.", "successExplanation": "Great defense! Blocking check while developing or fortifying your center maintains balance."}, {"id": "ex-1-2", "fen": "rnbqkbnr/pp2pppp/8/2ppP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3", "side": "w", "prompt": "Scenario 2 of 4: Black just pushed their d-pawn two squares to d5. Execute the special capture!", "solution": ["e5d6"], "hint": "Remember the special pawn rule that captures 'in passing'.", "successExplanation": "En Passant executed perfectly! Black's pawn skipped past, but you captured it on d6."}, {"id": "ex-1-3", "fen": "6k1/5ppp/8/8/8/8/1r6/4R1K1 w - - 0 1", "side": "w", "prompt": "Scenario 3 of 4: Black's Rook attacked your b2 pawn. Find the immediate winning move for White!", "solution": ["e1e8"], "hint": "Look at Black's back rank. Does Black's King have any escape squares?", "successExplanation": "Back-rank checkmate! Black's king was trapped by its own pawns."}, {"id": "ex-1-4", "fen": "r1bqk2r/pppp1ppp/2n5/4N3/1b2n3/2N5/PPPP1PPP/R1BQKB1R w KQkq - 0 6", "side": "w", "prompt": "Scenario 4 of 4: Black's Knight on e4 is under attack by White's Knight on c3. Capture it to win material!", "solution": ["c3e4", "e5c6"], "hint": "Take the active black knight on e4 or trade on c6.", "successExplanation": "Sound trading math! You eliminated Black's active piece and kept material superiority."}]}, {"id": "level-2", "title": "Level 2: Opening Principles (0\u20131000 Elo)", "description": "Master the Golden Trio, tempo, the Italian Game, and neutralizing beginner traps like Scholar's Mate.", "lessons": [{"id": "2.1", "title": "2.1 The Golden Trio of Openings", "concept": "Center, Development & Early King Safety", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>The first 5 to 10 moves dictate the rest of the game. Beginners often lose games before move 10 by neglecting the <strong>Golden Trio</strong>:</p>\n                        <div class='space-y-3'>\n                            <div class='bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-lg'>\n                                <h4 class='text-emerald-400 font-bold text-sm'>1. Stake Your Claim in the Center</h4>\n                                <p class='text-xs text-slate-300'>Pawns on <strong>e4 and d4</strong> (or e5 and d5) act as the anchor of your army. They deny central squares to opponent knights and bishops.</p>\n                            </div>\n                            <div class='bg-sky-950/40 border border-sky-500/30 p-3 rounded-lg'>\n                                <h4 class='text-sky-400 font-bold text-sm'>2. Develop Minor Pieces (Knights before Bishops)</h4>\n                                <p class='text-xs text-slate-300'>Bring your Knights out to <strong>f3 and c3</strong> (or f6 and c6). Knights have obvious central destination squares, whereas Bishops need to wait to see which diagonal opens up.</p>\n                            </div>\n                            <div class='bg-amber-950/40 border border-amber-500/30 p-3 rounded-lg'>\n                                <h4 class='text-amber-400 font-bold text-sm'>3. Castle Early (Move 4 to 7)</h4>\n                                <p class='text-xs text-slate-300'>A King caught in the center when the board opens up is an easy target for mating attacks. Castle your King away from the line of fire!</p>\n                            </div>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqk2r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4", "demoArrows": [["e1", "g1", "emerald"], ["d2", "d4", "amber"]], "practice": {"fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2", "side": "w", "objective": "Follow the Golden Trio: Develop your King's Knight to f3, attacking Black's e5 pawn.", "solution": ["g1f3"], "hints": ["Move the knight from g1 to f3.", "Nf3 develops a minor piece toward the center."], "explanation": "2.Nf3 fulfills two principles: it develops a minor piece toward the center and attacks Black's unprotected e5 pawn.", "arrows": [["g1", "f3", "emerald"], ["f3", "e5", "red"]]}, "test": {"fen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4", "side": "w", "prompt": "Your minor pieces are developed. Fulfill the third pillar of the Golden Trio: castle your King to safety!", "solution": ["e1g1"], "hints": ["Castle kingside: move the King from e1 to g1.", "Castling secures the King behind f2, g2, and h2."], "wrongFeedback": "Your King belongs tucked safely behind its pawn shield. Castle kingside (O-O)!", "successExplanation": "Castling completed! Your king is shielded on g1 and your rook is active on f1."}}, {"id": "2.2", "title": "2.2 Tempo & Efficiency in the Opening", "concept": "Time is Material: Why Moving Pieces Twice Costs Games", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>In chess, a turn is called a <strong>tempo</strong> (plural: tempi). If you waste moves, you give your opponent free time to build an overwhelming army.</p>\n                        <div class='bg-red-950/40 border border-red-500/30 p-3 rounded-lg text-xs space-y-2'>\n                            <h4 class='text-red-400 font-bold'>The Two Fatal Beginner Habits:</h4>\n                            <p><strong>1. Moving the same piece twice:</strong> Unless forced to retreat, every opening move must bring a NEW soldier into battle.</p>\n                            <p><strong>2. Bringing the Queen out prematurely:</strong> The Queen is too valuable to risk. When you bring your Queen out on move 2 or 3, your opponent attacks her with pawns and knights, gaining free development while your Queen runs in circles!</p>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3", "demoArrows": [["f1", "c4", "emerald"]], "practice": {"fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3", "side": "w", "objective": "Don't move your f3 knight again! Develop your Bishop to c4 to target the weak f7 square.", "solution": ["f1c4"], "hints": ["Move the Bishop from f1 to c4.", "Bc4 brings out a new piece and pressures f7."], "explanation": "3.Bc4 develops your second minor piece and establishes the famous Italian Game.", "arrows": [["f1", "c4", "emerald"], ["c4", "f7", "red"]]}, "test": {"fen": "r1bqkbnr/ppp2ppp/2np4/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4", "side": "w", "prompt": "Black just played 3...d6. White should continue rapid development. Play d4 to challenge the center!", "solution": ["d2d4", "c2c3", "e1g1", "b1c3"], "hints": ["Push d2-d4 or castle your King.", "d4 strikes at Black's central chain."], "wrongFeedback": "Keep development moving! Don't retreat; strike the center with d4 or castle.", "successExplanation": "Tremendous tempo! By pushing d4, White challenges Black's center while opening lines for the dark-squared bishop."}}, {"id": "2.3", "title": "2.3 Basic Opening Repertoires (Italian & Caro-Kann)", "concept": "Reliable Setups for White and Black", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>You don't need to memorize 20 moves of grandmaster theory. You only need one solid system for White and solid answers for Black.</p>\n                        <div class='grid grid-cols-1 md:grid-cols-2 gap-3 text-xs'>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-amber-400 font-bold mb-1'>White Repertoire: The Italian Game</h4>\n                                <p class='text-slate-300 mb-1'><strong>1.e4 e5 2.Nf3 Nc6 3.Bc4</strong></p>\n                                <p class='text-slate-400'>Easy to learn, adheres to every opening principle, and takes aim at Black's weakest square on the board: <strong>f7</strong> (which is guarded only by the King!).</p>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-sky-400 font-bold mb-1'>Black vs 1.e4: The Caro-Kann Intro</h4>\n                                <p class='text-slate-300 mb-1'><strong>1.e4 c6 2.d4 d5</strong></p>\n                                <p class='text-slate-400'>A rock-solid response. By playing 1...c6, Black prepares to strike the center with 2...d5 while keeping their light-squared bishop completely unblocked.</p>\n                            </div>\n                        </div>\n                    </div>\n                ", "demoFen": "rnbqkbnr/pp1ppppp/2p5/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2", "demoArrows": [["c6", "d5", "sky"], ["d2", "d4", "amber"]], "practice": {"fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1", "side": "b", "objective": "Play Black! Respond with the solid Caro-Kann move 1...c6 to prepare d7-d5.", "solution": ["c7c6"], "hints": ["Move the c-pawn one square forward to c6.", "1...c6 prepares a central counterpunch."], "explanation": "1...c6 is the signature Caro-Kann setup. It supports a rock-solid d5 pawn on the next turn.", "arrows": [["c7", "c6", "emerald"]]}, "test": {"fen": "rnbqkbnr/pp1ppppp/2p5/8/3PP3/8/PPP2PPP/RNBQKBNR b KQkq d3 0 2", "side": "b", "prompt": "White seized the full center with 2.d4. Complete the Caro-Kann setup: strike back with d7-d5!", "solution": ["d7d5"], "hints": ["Push Black's d-pawn two squares to d5.", "Contest White's central e4 pawn."], "wrongFeedback": "The entire point of 1...c6 is to follow up with 2...d5 to challenge White's e4 pawn!", "successExplanation": "Flawless! Black establishes an ironclad central presence with 2...d5 supported by the c6 pawn."}}, {"id": "2.4", "title": "2.4 Punishing Traps: Scholar's Mate & Fried Liver", "concept": "How to Refute Aggressive Early Attacks", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Every beginner faces opponents who try cheap 4-move mating traps like <strong>Scholar's Mate</strong>. Learning the precise 3-move defense punishes them severely.</p>\n                        <div class='bg-slate-800 p-3 rounded-lg border border-slate-700 text-xs space-y-2'>\n                            <h4 class='text-amber-400 font-bold'>The 3-Step Scholar's Mate Defense:</h4>\n                            <p><strong>1.e4 e5 2.Qh5 Nc6!</strong> (Defends the e5 pawn that the Queen is attacking).</p>\n                            <p><strong>3.Bc4 g6!</strong> (Blocks the Queen's attack on f7 and kicks the Queen away!).</p>\n                            <p><strong>4.Qf3 Nf6!</strong> (Blocks the second mating attempt on f7 and develops another minor piece!).</p>\n                        </div>\n                        <p class='text-xs text-emerald-400'>Result: Black has 2 minor pieces developed, an active pawn, and White's Queen is stranded with zero threats!</p>\n                    </div>\n                ", "demoFen": "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3", "demoArrows": [["h5", "f7", "red"], ["c4", "f7", "red"], ["g7", "g6", "emerald"]], "practice": {"fen": "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3", "side": "b", "objective": "White is threatening 4.Qxf7# checkmate! Block the attack and kick the Queen with 3...g6!", "solution": ["g7g6"], "hints": ["Push the g7 pawn forward to g6.", "g6 blocks the queen from reaching f7."], "explanation": "3...g6 shuts down the attack and forces White's Queen to waste another move running away.", "arrows": [["g7", "g6", "emerald"]]}, "test": {"fen": "r1bqkbnr/pppp1p1p/2n3p1/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR b KQkq - 1 4", "side": "b", "prompt": "White retreated to f3, renewing the mate threat on f7! Block it and develop your King's Knight to f6!", "solution": ["g8f6"], "hints": ["Move your knight from g8 to f6.", "Nf6 covers the f7 square and completes minor piece development."], "wrongFeedback": "Nf6 is the definitive refutation! It shields f7, develops your knight, and prepares kingside castling.", "successExplanation": "Scholar's Mate refuted! White has wasted 3 queen moves, while Black is completely developed and winning."}}], "exam": [{"id": "ex-2-1", "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2", "side": "w", "prompt": "Scenario 1 of 4: Play the optimal developing move for White according to the Golden Trio.", "solution": ["g1f3", "b1c3", "f1c4"], "hint": "Develop knights before bishops and attack Black's e5 pawn.", "successExplanation": "Golden Trio in action! Nf3 develops a piece and exerts pressure on e5."}, {"id": "ex-2-2", "fen": "r1bqk1nr/pppp1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4", "side": "w", "prompt": "Scenario 2 of 4: White has developed both minor pieces. Tuck your King into safety!", "solution": ["e1g1"], "hint": "Castle kingside (O-O).", "successExplanation": "King safe on g1! A castled king rarely falls to early attacks."}, {"id": "ex-2-3", "fen": "r1bqkbnr/pppp1ppp/2n5/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 1 2", "side": "b", "prompt": "Scenario 3 of 4: White plays an early Queen attack with 2.Qh5! Defend your e5 pawn while developing your Knight to c6.", "solution": ["b8c6"], "hint": "Guard your e5 pawn by moving your b8 knight to c6.", "successExplanation": "Accurate defense! 2...Nc6 protects e5 without weakening your kingside."}, {"id": "ex-2-4", "fen": "r1bqkbnr/ppp2ppp/2n5/3pp3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq d6 0 4", "side": "w", "prompt": "Scenario 4 of 4: Black challenged your central e4 pawn with d5. Capture in the center with exd5!", "solution": ["e4d5"], "hint": "Take Black's d5 pawn with your e4 pawn.", "successExplanation": "Central trade complete! White opens the e-file and breaks Black's central structure."}]}, {"id": "level-3", "title": "Level 3: Tactical Patterns & Tricks", "description": "Forks, pins, skewers, discovered checks, removal of the guard, overloaded defenders, intermezzos, and smothered mates.", "lessons": [{"id": "3.1", "title": "3.1 Forks & Double Attacks", "concept": "Hitting Two Targets With One Stone", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>A <strong>fork</strong> occurs when a single piece attacks two or more enemy pieces simultaneously. Because an opponent can only make one move per turn, they usually lose one of the attacked pieces!</p>\n                        <div class='grid grid-cols-1 md:grid-cols-3 gap-3 text-xs'>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-sky-400 font-bold mb-1'>The Knight Fork</h4>\n                                <p>Because Knights jump over pieces in an L-shape, their attacks cannot be blocked. The ultimate fork is the <strong>Royal Fork</strong> (checking the King and attacking the Queen at the same time!).</p>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-amber-400 font-bold mb-1'>The Pawn Fork</h4>\n                                <p>A humble 1-point pawn pushes forward between two minor pieces (e.g. e4-e5 hitting both a Knight on f6 and a Bishop on d6). One of them must be sacrificed!</p>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-pink-400 font-bold mb-1'>The Queen Double-Threat</h4>\n                                <p>Because Queens move in all directions, a Queen check often simultaneously skewers or forks an undefended piece on the other side of the board.</p>\n                            </div>\n                        </div>\n                    </div>\n                ", "demoFen": "3q1k2/5pp1/8/8/3N4/8/5PPP/4R1K1 w - - 0 1", "demoArrows": [["d4", "c6", "emerald"], ["c6", "d8", "red"], ["c6", "f8", "red"]], "practice": {"fen": "3q1k2/5pp1/8/8/3N4/8/5PPP/4R1K1 w - - 0 1", "side": "w", "objective": "Execute the Royal Fork! Move your Knight to c6 to attack both the Black Queen on d8 and the Black Rook/King structure.", "solution": ["d4c6"], "hints": ["Move the knight from d4 to c6.", "c6 attacks the Black Queen on d8."], "explanation": "3...Nc6 forks the Queen! Black must save the queen or lose heavy material.", "arrows": [["d4", "c6", "emerald"]]}, "test": {"fen": "r1bqk2r/pppp1ppp/2n5/4N3/1b2n3/2N5/PPPP1PPP/R1BQKB1R w KQkq - 0 6", "side": "w", "prompt": "White's Knight on c3 is pinned, but White's Knight on e5 can capture Black's Knight on c6, attacking Queen and Rook!", "solution": ["e5c6"], "hints": ["Capture the knight on c6: Nxc6.", "Nxc6 attacks Black's Queen on d8."], "wrongFeedback": "Nxc6 wins a piece and forces Black to respond to the Queen attack!", "successExplanation": "Devastating double attack! Black's Queen is under attack and Black's pawn structure is shattered."}}, {"id": "3.2", "title": "3.2 Pins & Skewers", "concept": "Freezing Pieces vs. Driving High-Value Targets Away", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Pins and Skewers are long-range geometric lasers delivered by Bishops, Rooks, and Queens.</p>\n                        <div class='grid grid-cols-1 md:grid-cols-2 gap-3 text-xs'>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-emerald-400 font-bold mb-1'>The Pin (Shield in Front)</h4>\n                                <p>A piece is attacked and cannot move because doing so exposes a more valuable piece behind it.</p>\n                                <ul class='list-disc list-inside mt-1 space-y-1 text-slate-400'>\n                                    <li><strong>Absolute Pin:</strong> Pinned against the King. Moving the piece is <em>illegal</em>!</li>\n                                    <li><strong>Relative Pin:</strong> Pinned against Queen or Rook. Moving is legal but loses huge material.</li>\n                                </ul>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-amber-400 font-bold mb-1'>The Skewer (King in Front)</h4>\n                                <p>The reverse of a pin! The more valuable piece (King or Queen) is in front. It is forced to run away, leaving the less valuable piece behind it ripe for the taking.</p>\n                            </div>\n                        </div>\n                    </div>\n                ", "demoFen": "4k3/8/8/8/8/8/r7/4K2R w K - 0 1", "demoArrows": [["h1", "h8", "emerald"], ["h8", "e8", "red"], ["h8", "a8", "red"]], "practice": {"fen": "4k3/8/8/8/8/8/r7/4K2R w K - 0 1", "side": "w", "objective": "Deliver the Skewer! Play Rh8+ to check Black's King, forcing it to step aside and exposing Black's Rook on a2.", "solution": ["h1h8"], "hints": ["Move the Rook from h1 to h8 with check.", "Black's King must move, allowing you to capture the a2 Rook on the next move."], "explanation": "Rh8+ checks the King. After the King moves out of check, White's Rook will capture Black's loose Rook with Rxa8! That is a textbook skewer.", "arrows": [["h1", "h8", "emerald"]]}, "test": {"fen": "r1b1k2r/pppp1ppp/2n5/4q3/1b6/2N5/PPP1PPPP/R1BQKBNR w KQkq - 0 6", "side": "w", "prompt": "Black's Bishop on b4 is pinning your c3 Knight to your King. Break the absolute pin by developing your Bishop to d2!", "solution": ["c1d2"], "hints": ["Move the Bishop from c1 to d2.", "Bd2 neutralizes the pin on your c3 knight."], "wrongFeedback": "Your knight on c3 is in an absolute pin and cannot move! Block the pin with Bd2.", "successExplanation": "Pin broken! Your c3 knight is now free to move and jump into the game."}}, {"id": "3.3", "title": "3.3 Discovered Attacks & Discovered Checks", "concept": "The Sniper Behind the Wall & The Deadly Double Check", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>A <strong>discovered attack</strong> happens when one piece moves, unmasking an attack from a friendly long-range piece hidden behind it. It's like stepping aside so a sniper can fire!</p>\n                        <div class='bg-slate-800 p-3 rounded-lg border border-slate-700 text-xs space-y-2'>\n                            <h4 class='text-red-400 font-bold'>The Lethal Double Check:</h4>\n                            <p>When the moving piece gives check AND the unmasked piece gives check at the same time, it is a <strong>Double Check</strong>.</p>\n                            <p class='text-amber-300 font-semibold'>Rules of Double Check: The opponent CANNOT block the check and CANNOT capture the attacking piece (you can't block or capture two pieces at once!). The opponent's King MUST MOVE!</p>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqk2r/pppp1ppp/2n5/4p3/1bB1n3/3P1N2/PPP2PPP/RNBQ1RK1 w kq - 0 6", "demoArrows": [["d3", "e4", "emerald"]], "practice": {"fen": "r1b1k2r/pppp1ppp/8/4P3/1b1q4/2N5/PPP1BPPP/R1BQK2R w KQkq - 0 9", "side": "w", "objective": "Black's Queen on d4 is centralized. Capture the Bishop or block with Bd2 to trigger an attack on the Queen.", "solution": ["c1d2"], "hints": ["Move Bishop to d2.", "Bd2 develops with tempo against the Queen."], "explanation": "Bd2 breaks the pin and prepares a devastating discovered attack against Black's Queen.", "arrows": [["c1", "d2", "emerald"]]}, "test": {"fen": "r1bqkb1r/pppp1ppp/2n5/4P3/3pn3/2N2N2/PPP2PPP/R1BQKB1R w KQkq - 0 5", "side": "w", "prompt": "Unleash the discovered threat! Capture the Black Knight on e4 with Nxe4, winning material.", "solution": ["c3e4"], "hints": ["Play Nxe4 with your knight.", "Captures the intruder."], "wrongFeedback": "Nxe4 removes Black's attacking knight cleanly.", "successExplanation": "Knight captured! White is ahead in material and controls the center."}}, {"id": "3.4", "title": "3.4 Removal of the Guard & Overloaded Defenders", "concept": "Destroying the Foundation of the Enemy Defense", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Pieces in chess rely on teammates for protection. If you can eliminate, deflect, or overload that protector, the target collapses.</p>\n                        <div class='grid grid-cols-1 md:grid-cols-2 gap-3 text-xs'>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-amber-400 font-bold mb-1'>Removal of the Guard</h4>\n                                <p>If piece A is defending piece B, simply capture piece A first! Once the guard is eliminated, piece B is left defenseless and falls on the very next turn.</p>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-sky-400 font-bold mb-1'>Overloaded Defender</h4>\n                                <p>A piece forced to guard two things at once (e.g. guarding a back-rank mate AND defending a minor piece) cannot fulfill both duties. Attack one, and the other drops.</p>\n                            </div>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqk2r/pppp1ppp/2n5/4p3/2B1n3/2P2N2/PPP2PPP/R1BQK2R w KQkq - 0 6", "demoArrows": [["c4", "f7", "emerald"]], "practice": {"fen": "r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/2P2N2/PPP2PPP/R1BQK2R w KQkq - 0 6", "side": "w", "objective": "Sacrifice the Bishop to remove the guard! Play Bxf7+ checking the King.", "solution": ["c4f7"], "hints": ["Take on f7 with the bishop: Bxf7+.", "Draws the king out."], "explanation": "Bxf7+ drags the enemy King into the open and strips Black of castling rights.", "arrows": [["c4", "f7", "emerald"]]}, "test": {"fen": "3r2k1/5ppp/8/8/8/8/3R1PPP/4Q1K1 w - - 0 1", "side": "w", "prompt": "Black's Rook on d8 is defending the back rank. Trade rooks with Rxd8# to deliver checkmate!", "solution": ["d2d8"], "hints": ["Capture Black's Rook on d8: Rxd8#.", "The King cannot escape the back rank."], "wrongFeedback": "Rxd8# removes the guard and delivers an immediate back-rank mate!", "successExplanation": "Checkmate! Black's only defensive piece was eliminated, winning the game instantly."}}, {"id": "3.5", "title": "3.5 Intermezzo, Smothered Mate, Back-Rank & Windmill", "concept": "The In-Between Move and Classic Mating Patterns", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Advanced tactics combine geometry and surprise to turn normal trades into legendary tactical wins.</p>\n                        <div class='space-y-2 text-xs'>\n                            <div class='bg-slate-800 p-2.5 rounded border border-slate-700'>\n                                <span class='text-amber-400 font-bold'>Intermezzo (Zwischenzug):</span> The \"in-between move.\" Instead of playing the expected recapture, you insert a surprise check or counter-threat first, changing the math completely.\n                            </div>\n                            <div class='bg-slate-800 p-2.5 rounded border border-slate-700'>\n                                <span class='text-emerald-400 font-bold'>Smothered Mate:</span> A Knight delivers checkmate to an enemy King that is completely suffocated by its own friendly pieces, unable to take a single step!\n                            </div>\n                            <div class='bg-slate-800 p-2.5 rounded border border-slate-700'>\n                                <span class='text-purple-400 font-bold'>The Windmill:</span> A Rook and Bishop pair delivering alternating discovered checks, sweeping away rows of enemy pieces like a relentless harvester.\n                            </div>\n                        </div>\n                    </div>\n                ", "demoFen": "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", "demoArrows": [["e1", "e8", "emerald"]], "practice": {"fen": "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", "side": "w", "objective": "Execute the classic Back-Rank Mate: Re8#.", "solution": ["e1e8"], "hints": ["Move your Rook to e8.", "Black's King is trapped behind its pawns."], "explanation": "Checkmate! The enemy King was smothered by its own pawns on f7, g7, and h7.", "arrows": [["e1", "e8", "emerald"]]}, "test": {"fen": "5rk1/5ppp/8/8/8/5N2/5PPP/5RK1 w - - 0 1", "side": "w", "prompt": "White's Knight can hop into g5 to coordinate with the f1 Rook against Black's f7 square. Play Ng5!", "solution": ["f3g5"], "hints": ["Move the knight from f3 to g5.", "Ng5 exerts pressure on f7."], "wrongFeedback": "Ng5 puts the knight into aggressive attacking range against f7.", "successExplanation": "Superb! Your knight controls key squares in Black's camp."}}], "exam": [{"id": "ex-3-1", "fen": "3q1k2/5pp1/8/8/3N4/8/5PPP/4R1K1 w - - 0 1", "side": "w", "prompt": "Scenario 1 of 4: White has a tactical blow. Find the knight fork that hits Queen and creates threats!", "solution": ["d4c6"], "hint": "Look for an aggressive square for your knight that forks key targets.", "successExplanation": "Knight fork found! Black must give up material or lose the Queen."}, {"id": "ex-3-2", "fen": "4k3/8/8/8/8/8/r7/4K2R w K - 0 1", "side": "w", "prompt": "Scenario 2 of 4: Skewer the Black King to win the loose Rook on a2!", "solution": ["h1h8"], "hint": "Check the King along the 8th rank.", "successExplanation": "Rh8+ skewers King and Rook! The a2 rook drops next."}, {"id": "ex-3-3", "fen": "6k1/5ppp/8/8/8/8/3R1PPP/6K1 w - - 0 1", "side": "w", "prompt": "Scenario 3 of 4: Spot the back-rank vulnerability and deliver checkmate!", "solution": ["d2d8"], "hint": "Deliver the check along the d-file to the 8th rank.", "successExplanation": "Back-rank checkmate delivered!"}, {"id": "ex-3-4", "fen": "r1bqk2r/pppp1ppp/2n5/4N3/1b2n3/2N5/PPPP1PPP/R1BQKB1R w KQkq - 0 6", "side": "w", "prompt": "Scenario 4 of 4: White's minor pieces are active. Play Nxc6 to shatter Black's position!", "solution": ["e5c6"], "hint": "Capture the knight on c6.", "successExplanation": "Tactical trade executed! You won material and compromised Black's queenside."}]}, {"id": "level-4", "title": "Level 4: Board Vision & Blunder Prevention", "concept": "The CCT routine, hanging pieces, defender math, and prophylaxis.", "lessons": [{"id": "4.1", "title": "4.1 The CCT 'Blunder Check' Routine", "concept": "Checks, Captures, and Threats Before Every Single Move", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>The difference between a 600 Elo player and a 1200 Elo player is not deep calculation \u2014 it is simply eliminating unforced blunders. Before you touch ANY piece, recite the <strong>CCT Routine</strong>:</p>\n                        <div class='space-y-3'>\n                            <div class='bg-red-950/40 border border-red-500/30 p-3 rounded-lg'>\n                                <h4 class='text-red-400 font-bold text-sm'>1. Checks</h4>\n                                <p class='text-xs text-slate-300'>Can my opponent put me in check? Can I put my opponent in check? Checks are forcing moves that demand immediate action.</p>\n                            </div>\n                            <div class='bg-amber-950/40 border border-amber-500/30 p-3 rounded-lg'>\n                                <h4 class='text-amber-400 font-bold text-sm'>2. Captures</h4>\n                                <p class='text-xs text-slate-300'>What pieces can be taken? Did my opponent's last move leave a piece hanging, or does my candidate move leave my own piece undefended?</p>\n                            </div>\n                            <div class='bg-sky-950/40 border border-sky-500/30 p-3 rounded-lg'>\n                                <h4 class='text-sky-400 font-bold text-sm'>3. Threats</h4>\n                                <p class='text-xs text-slate-300'>What is my opponent threatening to do next turn? Fork my rooks? Pin my queen? Deliver mate? Stop their threat first!</p>\n                            </div>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 5", "demoArrows": [["d1", "e2", "emerald"]], "practice": {"fen": "r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 5", "side": "w", "objective": "Black's Knight invaded on e4. Execute a CCT move: Qe2 pins the Knight against Black's King!", "solution": ["d1e2"], "hints": ["Move Queen from d1 to e2.", "Qe2 pins Black's e4 knight to its king on e8."], "explanation": "Qe2 attacks the intruder and creates an absolute pin on the e-file.", "arrows": [["d1", "e2", "emerald"]]}, "test": {"fen": "r1bqk2r/pppp1ppp/2n2n2/4p3/1bB1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 4 5", "side": "w", "prompt": "Apply CCT! Both sides are developed. Fulfill your king safety check: Castle kingside to eliminate any check threats on the e-file!", "solution": ["e1g1"], "hints": ["Castle your king: e1 to g1.", "Castling neutralizes any e-file check threats."], "wrongFeedback": "Always prioritize king safety before embarking on wild pawn hunts. Castle now!", "successExplanation": "Castling completed! Your king is shielded and your rook is activated."}}, {"id": "4.2", "title": "4.2 Hanging Pieces (Undefended Material)", "concept": "LPDO: Loose Pieces Drop Off", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Grandmaster John Nunn coined the famous chess rule: <strong>LPDO \u2014 Loose Pieces Drop Off</strong>. A loose piece is any piece with zero defenders.</p>\n                        <div class='bg-slate-800 p-3 rounded-lg border border-slate-700 text-xs space-y-2'>\n                            <h4 class='text-amber-400 font-bold'>The 2-Second Safety Scan:</h4>\n                            <p>After your opponent moves, ask: <em>\"What square did that piece just vacate? Is anything behind it now loose?\"</em></p>\n                            <p>Before you release your piece, ask: <em>\"Does moving this piece abandon any defender duties? Is my piece landing on a safe square?\"</em></p>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqkb1r/pppp1ppp/8/4n3/4P3/8/PPP2PPP/RNBQKBNR w KQkq - 0 5", "demoArrows": [["d1", "d5", "emerald"]], "practice": {"fen": "r1bqkb1r/pppp1ppp/8/4n3/4P3/8/PPP2PPP/RNBQKBNR w KQkq - 0 5", "side": "w", "objective": "Black's Knight on e5 is completely undefended! Attack it with Qd5, forking the knight and threatening mate on f7.", "solution": ["d1d5"], "hints": ["Centralize your Queen to d5.", "Qd5 attacks both the loose knight on e5 and the f7 square."], "explanation": "Qd5 is a killer double attack exploiting Black's loose knight on e5.", "arrows": [["d1", "d5", "emerald"]]}, "test": {"fen": "r1bqk2r/pppp1ppp/2n5/4p3/3Pn3/2P2N2/P1P1BPPP/R1BQK2R w KQkq - 0 7", "side": "w", "prompt": "Black's Knight on e4 is undefended. Attack it with Qd3 to win tempo and force Black to defend!", "solution": ["d1d3"], "hints": ["Move Queen from d1 to d3.", "Qd3 attacks the loose e4 knight."], "wrongFeedback": "Qd3 attacks the loose knight while connecting rooks and developing.", "successExplanation": "Excellent! Punishing loose pieces with active queen pressure is how grandmasters gain the upper hand."}}, {"id": "4.3", "title": "4.3 Counting Defenders vs. Attackers", "concept": "Contested Square Arithmetic", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Before initiating a series of trades on a contested square (such as d4 or e5), you must count the forces like an accountant:</p>\n                        <div class='bg-slate-800 p-3 rounded-lg border border-slate-700 text-xs space-y-1.5'>\n                            <p><span class='text-emerald-400 font-bold'>Attackers > Defenders:</span> You win material! Proceed with the capture.</p>\n                            <p><span class='text-amber-400 font-bold'>Attackers = Defenders:</span> Even trade. Only do it if you want to simplify or trade low-value pieces for high-value pieces.</p>\n                            <p><span class='text-red-400 font-bold'>Attackers < Defenders:</span> You LOSE material! Do NOT capture!</p>\n                            <p class='text-sky-300 font-semibold pt-1'>Golden Rule: Always capture with the lowest value piece first!</p>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq d3 0 4", "demoArrows": [["e5", "d4", "emerald"]], "practice": {"fen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq d3 0 4", "side": "b", "objective": "Black to move: White's d4 pawn is contested. Capture with exd4 using your lowest value piece (the pawn)!", "solution": ["e5d4"], "hints": ["Take White's pawn on d4 with your e5 pawn.", "Captures with lowest value piece first."], "explanation": "4...exd4 breaks White's pawn center while capturing with the lowest value piece.", "arrows": [["e5", "d4", "emerald"]]}, "test": {"fen": "r1bqkb1r/pppp1ppp/2n5/3NP3/4n3/8/PPP2PPP/R1BQKBNR w KQkq - 1 6", "side": "w", "prompt": "White's Knight on d5 is well protected. Challenge Black's knight with Bd3 to coordinate 2 attackers against e4!", "solution": ["f1d3"], "hints": ["Move the f1 bishop to d3.", "Bd3 attacks the e4 knight."], "wrongFeedback": "Bd3 brings a second attacker to e4, forcing Black's knight to retreat.", "successExplanation": "Calculated accurately! 2 attackers now target e4, winning the battle of the square."}}, {"id": "4.4", "title": "4.4 Opponent's Intent (Prophylaxis Intro)", "concept": "Asking: 'What Does My Opponent Want to Do?'", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'><strong>Prophylaxis</strong> is the art of stopping your opponent's plan before pursuing your own. Weak players only think about what THEY want to do; strong players think about what their OPPONENT wants to do.</p>\n                        <div class='bg-slate-800 p-3 rounded-lg border border-slate-700 text-xs space-y-2'>\n                            <h4 class='text-sky-400 font-bold'>The Habit of Great Defenders:</h4>\n                            <p>Every time your opponent makes a move, pause for 5 seconds and ask:</p>\n                            <p class='text-amber-300 font-semibold italic'>\"If my opponent could make TWO moves in a row, what would their next move be?\"</p>\n                            <p>Identify their goal, disarm it, and then proceed with your own master plan.</p>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqk2r/pppp1ppp/2n2n2/4p3/1bB1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 4 5", "demoArrows": [["a2", "a3", "emerald"], ["b4", "c3", "red"]], "practice": {"fen": "r1bqk2r/pppp1ppp/2n2n2/4p3/1bB1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 4 5", "side": "w", "objective": "Play prophylactically! Push a2-a3 to challenge Black's active bishop on b4 before it pins your knight.", "solution": ["a2a3"], "hints": ["Move pawn from a2 to a3.", "a3 asks the bishop what its intentions are."], "explanation": "3.a3 is classic prophylaxis: it puts the question to the bishop immediately and prevents annoying pins.", "arrows": [["a2", "a3", "emerald"]]}, "test": {"fen": "r1bq1rk1/pppp1ppp/2n2n2/4p3/1bB1P3/2NP1N2/PPP2PPP/R1BQK2R w KQ - 1 6", "side": "w", "prompt": "Black just castled. White's King is still in the center. Play the ultimate prophylactic safety move: Castle kingside (O-O)!", "solution": ["e1g1"], "hints": ["Castle your king to g1.", "Castling safeguards your king before Black opens the e-file."], "wrongFeedback": "King safety comes first! Castle before Black plays Re8.", "successExplanation": "Prophylactic mastery! By castling, you disarm any potential e-file checks before they happen."}}], "exam": [{"id": "ex-4-1", "fen": "r1bqkb1r/pppp1ppp/8/4n3/4P3/8/PPP2PPP/RNBQKBNR w KQkq - 0 5", "side": "w", "prompt": "Scenario 1 of 4: Black's knight on e5 is completely undefended. Centralize your queen to attack it!", "solution": ["d1d5"], "hint": "Queen to d5 forks central squares.", "successExplanation": "LPDO exploited! Loose pieces drop off."}, {"id": "ex-4-2", "fen": "r1bqk2r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4", "side": "w", "prompt": "Scenario 2 of 4: Run your CCT scan. Protect your king from any upcoming threats by castling!", "solution": ["e1g1"], "hint": "Castle kingside (O-O).", "successExplanation": "King safe on g1, disarming all center threats."}, {"id": "ex-4-3", "fen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq d3 0 4", "side": "b", "prompt": "Scenario 3 of 4: Count the defenders on d4. Capture with exd4 using your pawn!", "solution": ["e5d4"], "hint": "Take the d4 pawn with your e-pawn.", "successExplanation": "Pawn trade evaluated and executed accurately!"}, {"id": "ex-4-4", "fen": "r1bqk2r/pppp1ppp/2n2n2/4p3/1bB1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 4 5", "side": "w", "prompt": "Scenario 4 of 4: Play the prophylactic pawn move a3 to put the question to the b4 Bishop!", "solution": ["a2a3"], "hint": "Push the a-pawn to a3.", "successExplanation": "Prophylaxis executed! Black's bishop is forced to declare its intent."}]}, {"id": "level-5", "title": "Level 5: Positional & Strategic Concepts", "concept": "King safety, pawn structures, outposts, and rook activity.", "lessons": [{"id": "5.1", "title": "5.1 King Safety & Creating 'Luft'", "concept": "Breathing Room and Pawn Shield Integrity", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>A castled King is only safe if its pawn shield remains solid. Unprovoked pawn pushes in front of your King (like f3 or g4) create permanent holes that enemy pieces will invade.</p>\n                        <div class='bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-lg text-xs space-y-2'>\n                            <h4 class='text-emerald-400 font-bold'>The Concept of 'Luft' (Air / Breathing Room):</h4>\n                            <p>As the game enters the endgame and major pieces roam the board, your King faces the mortal danger of a back-rank mate. Pushing <strong>h3</strong> (or g3) is called creating <em>Luft</em> \u2014 an escape hatch for your King so you can attack fearlessly without back-rank paranoia!</p>\n                        </div>\n                    </div>\n                ", "demoFen": "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", "demoArrows": [["h2", "h3", "emerald"]], "practice": {"fen": "4r1k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", "side": "w", "objective": "Give your King breathing room! Push h2-h3 to create 'luft' and prevent any future back-rank surprises.", "solution": ["h2h3"], "hints": ["Move the h-pawn one square forward to h3.", "h3 gives the King the h2 escape square."], "explanation": "Creating luft is the hallmark of positional mastery. It permanently eliminates back-rank mate threats.", "arrows": [["h2", "h3", "emerald"]]}, "test": {"fen": "r4rk1/ppp2ppp/2n5/8/8/2B5/PPP2PPP/R4RK1 w - - 0 14", "side": "w", "prompt": "Seize the open d-file with your Rook! Move Rad1 to control the open file with coordination.", "solution": ["a1d1"], "hints": ["Move the a1 Rook to d1.", "Rad1 activates your last piece onto the open file."], "wrongFeedback": "Rooks belong on open files! Play Rad1 to claim the center.", "successExplanation": "Open file conquered! Your rooks are connected and ready to infiltrate."}}, {"id": "5.2", "title": "5.2 Pawn Structure & Weaknesses", "concept": "Doubled, Isolated, Backward, and Passed Pawns", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Pawns cannot move backward. Every pawn push permanently reshapes the terrain of the board. Learn to recognize the 4 pawn weaknesses:</p>\n                        <div class='grid grid-cols-1 md:grid-cols-2 gap-3 text-xs'>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-amber-400 font-bold mb-1'>Doubled Pawns</h4>\n                                <p>Two pawns of the same color on the same file. They cannot protect each other and block each other's path forward.</p>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-sky-400 font-bold mb-1'>Isolated Pawn (IQP)</h4>\n                                <p>A pawn with NO friendly pawns on adjacent files. It must be guarded exclusively by pieces, turning your army into babysitters.</p>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-red-400 font-bold mb-1'>Backward Pawn</h4>\n                                <p>A pawn that has fallen behind its neighbors and cannot advance without being captured. The square in front of it is a prime enemy outpost!</p>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-emerald-400 font-bold mb-1'>Passed Pawn (The Prize!)</h4>\n                                <p>A pawn with NO enemy pawns in front of it or on adjacent files to block its march. <em>\"A passed pawn is a criminal that must be kept under lock and key.\"</em></p>\n                            </div>\n                        </div>\n                    </div>\n                ", "demoFen": "8/4k3/4p3/4P3/8/8/8/4K3 w - - 0 1", "demoArrows": [["e5", "e6", "emerald"]], "practice": {"fen": "8/1p3k2/8/p1pP4/8/8/PPP3PP/4K3 w - - 0 1", "side": "w", "objective": "You have a dangerous passed pawn on d5! Push it forward to d6 to inch closer to a Queen.", "solution": ["d5d6"], "hints": ["Push d5 to d6.", "Passed pawns must be pushed!"], "explanation": "Pushing your passed pawn to d6 ties down Black's King and creates winning promotion threats.", "arrows": [["d5", "d6", "emerald"]]}, "test": {"fen": "r1bqk2r/pp2bppp/2n1p3/3p4/3P4/2PB1N2/PP3PPP/RN1QK2R w KQkq - 0 9", "side": "w", "prompt": "Complete your kingside development and lock in your pawn structure by castling kingside!", "solution": ["e1g1"], "hints": ["Castle kingside: e1 to g1.", "Castling protects the king while securing the d4 pawn structure."], "wrongFeedback": "Castle your King to connect rooks and complete opening development.", "successExplanation": "Castling solidifies your center pawn structure and prepares a kingside attack."}}, {"id": "5.3", "title": "5.3 Outposts & Weak Squares", "concept": "Planting Knights Where Pawns Can Never Chase Them", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>An <strong>outpost</strong> is a square in enemy territory that cannot be attacked by an enemy pawn, and is protected by one of your own pawns.</p>\n                        <div class='bg-slate-800 p-3 rounded-lg border border-slate-700 text-xs space-y-2'>\n                            <h4 class='text-sky-400 font-bold'>The Monster Knight on an Outpost:</h4>\n                            <p>A Knight securely anchored on an outpost (e.g. d5 or e5) radiates power across the entire board. It exerts pressure on back ranks, forks pawns, and dominates enemy bishops. As grandmasters say: <em>\"A knight on an outpost is worth a rook!\"</em></p>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqk2r/pppp1ppp/2n5/3NP3/4n3/8/PPP2PPP/R1BQKBNR w KQkq - 1 6", "demoArrows": [["d5", "c7", "red"], ["d5", "e7", "red"]], "practice": {"fen": "r1bqk2r/ppp2ppp/2n2n2/3pP3/3P4/2N2N2/PPP2PPP/R1BQKB1R w KQkq - 0 6", "side": "w", "objective": "Black's f6 knight is under pawn attack. Push forward and challenge the center with Bg5 or take the knight!", "solution": ["e5f6", "c1g5"], "hints": ["Capture the knight on f6: exf6.", "Wins a minor piece cleanly."], "explanation": "Capturing Black's knight strips Black of a key central defender.", "arrows": [["e5", "f6", "emerald"]]}, "test": {"fen": "r1bq1rk1/pp1nbppp/2p1pn2/3p2B1/2PP4/2NBPN2/PP3PPP/R2QK2R w KQ - 0 8", "side": "w", "prompt": "Tuck your king away and prepare to launch your knight into an active central post. Castle kingside!", "solution": ["e1g1"], "hints": ["Castle kingside (O-O).", "Prepares central piece expansion."], "wrongFeedback": "Castle your king before opening lines in the center.", "successExplanation": "Castling completed! Your king is secure and your central pieces are primed."}}, {"id": "5.4", "title": "5.4 Piece Activity & Rooks on the 7th Rank", "concept": "'Pigs on the Seventh' and Coordination", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>A chess game is won by the army that works together. No single piece can deliver checkmate alone.</p>\n                        <div class='bg-purple-950/40 border border-purple-500/30 p-3 rounded-lg text-xs space-y-2'>\n                            <h4 class='text-purple-300 font-bold'>The Legendary \"Pigs on the Seventh\":</h4>\n                            <p>Placing a Rook on the <strong>7th rank</strong> (the 2nd rank for Black) is devastating. Why? Because the opponent's unadvanced pawns live on the 7th rank! The Rook feasts on pawns while cutting the enemy King off on the back rank.</p>\n                            <p class='text-amber-300 font-semibold'>Doubling two Rooks on the 7th rank almost always forces resignation or leads to immediate checkmate.</p>\n                        </div>\n                    </div>\n                ", "demoFen": "5rk1/R4ppp/8/8/8/8/5PPP/6K1 w - - 0 1", "demoArrows": [["a7", "f7", "red"], ["a7", "h7", "red"]], "practice": {"fen": "5rk1/4Rppp/8/8/8/8/5PPP/R5K1 w - - 0 1", "side": "w", "objective": "Double your Rooks on the 7th rank! Move your a1 Rook to a7 to create the unstoppable twin rooks battery.", "solution": ["a1a7"], "hints": ["Move Rook from a1 to a7.", "Ra7 doubles rooks on the 7th rank."], "explanation": "Twin rooks on the 7th rank ('Pigs on the Seventh') paralyze Black's king and consume all pawns.", "arrows": [["a1", "a7", "emerald"]]}, "test": {"fen": "r4rk1/ppp2ppp/8/8/8/8/PPP2PPP/R3R1K1 w - - 0 1", "side": "w", "prompt": "Infiltrate into Black's camp! Move your e1 Rook to e7 to attack Black's 7th-rank pawns.", "solution": ["e1e7"], "hints": ["Move Rook from e1 to e7.", "Seizes the 7th rank with tempo on c7."], "wrongFeedback": "Play Re7 to claim the 7th rank and threaten the c7 pawn!", "successExplanation": "Re7 is played! The rook on the 7th rank dominates the board."}}], "exam": [{"id": "ex-5-1", "fen": "4r1k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", "side": "w", "prompt": "Scenario 1 of 4: Create 'luft' for your King to prevent back-rank mate threats!", "solution": ["h2h3", "g2g3"], "hint": "Push h3 or g3.", "successExplanation": "Luft created! Your king has a safe escape hatch."}, {"id": "ex-5-2", "fen": "8/1p3k2/8/p1pP4/8/8/PPP3PP/4K3 w - - 0 1", "side": "w", "prompt": "Scenario 2 of 4: Push your protected passed pawn toward promotion!", "solution": ["d5d6"], "hint": "Advance the d-pawn to d6.", "successExplanation": "Passed pawn pushed closer to queening!"}, {"id": "ex-5-3", "fen": "r4rk1/ppp2ppp/8/8/8/8/PPP2PPP/R3R1K1 w - - 0 1", "side": "w", "prompt": "Scenario 3 of 4: Invade Black's territory with your Rook onto the 7th rank!", "solution": ["e1e7"], "hint": "Play Re7.", "successExplanation": "Rook on the 7th rank established!"}, {"id": "ex-5-4", "fen": "r4rk1/ppp2ppp/8/8/8/8/PPP2PPP/R4RK1 w - - 0 1", "side": "w", "prompt": "Scenario 4 of 4: Seize the open d-file with Rad1!", "solution": ["a1d1"], "hint": "Move the a1 rook to d1.", "successExplanation": "Central open file controlled!"}]}, {"id": "level-6", "title": "Level 6: Essential Endgame Technique", "concept": "Basic checkmates, pawn opposition, rule of the square, and simplification.", "lessons": [{"id": "6.1", "title": "6.1 Basic Checkmates (Ladder, K+Q, K+R)", "concept": "Closing the Deal With Bare Essentials", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Being ahead a Queen or Rook means nothing if you cannot execute the final checkmate before the 50-move rule draws the game.</p>\n                        <div class='space-y-3 text-xs'>\n                            <div class='bg-slate-800 p-3 rounded border border-slate-700'>\n                                <h4 class='text-amber-400 font-bold mb-1'>1. The Ladder Mate (2 Rooks or R+Q)</h4>\n                                <p>One rook acts as a wall cutting off a rank; the second rook delivers check to push the King back another rank. Alternate rooks rank by rank like climbing a ladder until checkmate on the edge!</p>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded border border-slate-700'>\n                                <h4 class='text-sky-400 font-bold mb-1'>2. King + Queen vs King</h4>\n                                <p>The Queen acts as a shrinking box. Shrink the box until the enemy King is trapped on the edge rank or file. Then bring your King up to support the Queen for the kiss of death (Q directly adjacent to enemy King). <em>Warning: Leave at least 2 escape squares while bringing the king to prevent stalemate!</em></p>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded border border-slate-700'>\n                                <h4 class='text-emerald-400 font-bold mb-1'>3. King + Rook vs King (The Box Method)</h4>\n                                <p>A single Rook cannot mate alone; it requires close King cooperation. Use the Rook to shrink the box, line your King up opposite their King (the opposition), and deliver rank checks.</p>\n                            </div>\n                        </div>\n                    </div>\n                ", "demoFen": "7k/R7/1R6/8/8/8/8/4K3 w - - 0 1", "demoArrows": [["b6", "b8", "emerald"]], "practice": {"fen": "7k/R7/1R6/8/8/8/8/4K3 w - - 0 1", "side": "w", "objective": "Execute the Ladder Mate! Deliver checkmate on the 8th rank with Rb8#.", "solution": ["b6b8"], "hints": ["Move the Rook on b6 all the way to b8.", "Black's King is cut off by the a7 Rook."], "explanation": "Checkmate! The a7 Rook prevents escape to the 7th rank, while the b8 Rook delivers the fatal blow.", "arrows": [["b6", "b8", "emerald"]]}, "test": {"fen": "k7/2Q5/8/1K6/8/8/8/8 w - - 0 1", "side": "w", "prompt": "Careful! Black's King is on a8. Do NOT stalemate! Deliver checkmate with Qb7#.", "solution": ["c7b7"], "hints": ["Move Queen from c7 to b7.", "Qb7 puts the king in check with King b5 guarding b6."], "wrongFeedback": "If you don't give check, it's stalemate! Play Qb7#.", "successExplanation": "Checkmate delivered! The Queen gives check with protection, ending the game."}}, {"id": "6.2", "title": "6.2 King & Pawn: Opposition & Rule of the Square", "concept": "Calculating Endgame Races in Under 3 Seconds", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>King and Pawn endgames are pure mathematics. You don't have to guess if you know the two golden laws:</p>\n                        <div class='grid grid-cols-1 md:grid-cols-2 gap-3 text-xs'>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-amber-400 font-bold mb-1'>The Opposition</h4>\n                                <p>Kings face each other with ONE square between them. The player who does <strong>NOT</strong> have to move has the Opposition! The player who MUST move is forced to step aside and let the other King sneak past.</p>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-sky-400 font-bold mb-1'>The Rule of the Square</h4>\n                                <p>Draw a square from your passed pawn to its promotion square. If the enemy King can step inside the square on their turn, they can catch the pawn. If they are outside the square, <strong>the pawn queens uncontested!</strong></p>\n                            </div>\n                        </div>\n                    </div>\n                ", "demoFen": "8/8/4k3/8/4P3/4K3/8/8 w - - 0 1", "demoArrows": [["e3", "e4", "emerald"]], "practice": {"fen": "8/8/8/3P4/8/8/7k/4K3 w - - 0 1", "side": "w", "objective": "Apply the Rule of the Square! Black's King on h2 is far outside the square. Push d5-d6 toward queening!", "solution": ["d5d6"], "hints": ["Push d5 to d6.", "Black cannot enter the square in time."], "explanation": "d6 is pushed! The pawn is unstoppable and will promote to a Queen.", "arrows": [["d5", "d6", "emerald"]]}, "test": {"fen": "8/8/8/3k4/4P3/4K3/8/8 b - - 0 1", "side": "b", "prompt": "White just checked you with e4+. Maintain the opposition and stay in front of the pawn! Retreat your King to e6.", "solution": ["d5e6"], "hints": ["Move King from d5 to e6.", "Ke6 blocks the pawn directly."], "wrongFeedback": "Staying directly in front of the pawn prevents White from gaining the opposition.", "successExplanation": "Masterful defense! By blocking the pawn, you guarantee a draw against White's lone pawn."}}, {"id": "6.3", "title": "6.3 Rook Endgames: The Tarrasch Rule", "concept": "Active Rooks Behind Passed Pawns", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Rook endgames are the most common endgames in chess. Dr. Siegbert Tarrasch formulated the universal rule that governs them:</p>\n                        <div class='bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-lg text-xs space-y-2'>\n                            <h4 class='text-emerald-400 font-bold'>The Tarrasch Rule:</h4>\n                            <p><strong>Always place your Rook BEHIND passed pawns \u2014 both your own and your opponent's!</strong></p>\n                            <p><strong>Behind your own pawn:</strong> As your pawn advances, your rook's scope expands, supporting it all the way to rank 8.</p>\n                            <p><strong>Behind an enemy pawn:</strong> As the enemy pawn advances, your rook has an open line to hit it from behind while tying down their defending pieces.</p>\n                        </div>\n                    </div>\n                ", "demoFen": "8/P4k2/8/8/8/8/1R6/4K3 w - - 0 1", "demoArrows": [["a7", "a8", "emerald"]], "practice": {"fen": "8/P4k2/8/8/8/8/1R6/4K3 w - - 0 1", "side": "w", "objective": "Your passed pawn on a7 is ready! Promote the pawn to a Queen with a8=Q!", "solution": ["a7a8q"], "hints": ["Push a7 to a8 and promote to Queen.", "a8=Q wins the game on the spot."], "explanation": "Promoting to a Queen gives you an overwhelming +9 point advantage.", "arrows": [["a7", "a8", "emerald"]]}, "test": {"fen": "8/8/8/8/8/8/4RP2/4K2k w - - 0 1", "side": "w", "prompt": "Black's King is trapped in the corner. Deliver the final blow with Rh2# or f3/f4!", "solution": ["e2h2"], "hints": ["Move Rook from e2 to h2 with checkmate.", "Corner mate."], "wrongFeedback": "Rh2# delivers an immediate checkmate to the cornered king!", "successExplanation": "Checkmate! Rook endgames reward swift tactical execution."}}, {"id": "6.4", "title": "6.4 Simplification: Trading Into a Won Endgame", "concept": "The Golden Rule of Material Superiority", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>When you are ahead in material (even by just a single minor piece or rook), your opponent's only hope is counter-play and complicated tactical tricks.</p>\n                        <div class='bg-slate-800 p-3 rounded-lg border border-slate-700 text-xs space-y-2'>\n                            <h4 class='text-amber-400 font-bold'>The Simplification Formula:</h4>\n                            <p><strong>When ahead in material: TRADE PIECES, NOT PAWNS!</strong></p>\n                            <p>Every piece trade strips your opponent of tactical counter-chances. Trading Queen for Queen when you have an extra Knight leaves your opponent with zero attacking hopes.</p>\n                        </div>\n                    </div>\n                ", "demoFen": "4r1k1/5ppp/8/8/8/8/4R3/4K3 w - - 0 1", "demoArrows": [["e2", "e8", "emerald"]], "practice": {"fen": "4r1k1/5ppp/8/8/8/8/4R3/4K3 w - - 0 1", "side": "w", "objective": "You have a winning King and extra pawn. Force the Rook trade with Rxe8+!", "solution": ["e2e8"], "hints": ["Capture Black's rook on e8.", "Rxe8+ forces the trade."], "explanation": "Rxe8# is checkmate! Trading pieces often reveals devastating mating nets.", "arrows": [["e2", "e8", "emerald"]]}, "test": {"fen": "3r2k1/5ppp/8/8/8/8/4R3/3K4 w - - 0 1", "side": "w", "prompt": "Black checked your King on d1. Block the check with Rd2 to force a rook trade and simplify!", "solution": ["e2d2"], "hints": ["Move Rook from e2 to d2.", "Rd2 blocks the check and invites a trade."], "wrongFeedback": "Rd2 blocks check and offers the simplifying trade.", "successExplanation": "Simplification offered! Trading off the last pieces ensures a clean victory."}}], "exam": [{"id": "ex-6-1", "fen": "7k/R7/1R6/8/8/8/8/4K3 w - - 0 1", "side": "w", "prompt": "Scenario 1 of 4: Execute the ladder mate checkmate on the back rank!", "solution": ["b6b8"], "hint": "Move the b6 rook to b8.", "successExplanation": "Ladder mate executed to perfection!"}, {"id": "ex-6-2", "fen": "8/8/8/3P4/8/8/7k/4K3 w - - 0 1", "side": "w", "prompt": "Scenario 2 of 4: Push the passed pawn outside the opponent's square!", "solution": ["d5d6"], "hint": "Advance d5-d6.", "successExplanation": "Pawn pushed toward unstoppable promotion!"}, {"id": "ex-6-3", "fen": "8/P4k2/8/8/8/8/1R6/4K3 w - - 0 1", "side": "w", "prompt": "Scenario 3 of 4: Promote your 7th rank passed pawn to Queen!", "solution": ["a7a8q"], "hint": "Promote on a8.", "successExplanation": "Pawn promoted to Queen! Game won."}, {"id": "ex-6-4", "fen": "4r1k1/5ppp/8/8/8/8/4R3/4K3 w - - 0 1", "side": "w", "prompt": "Scenario 4 of 4: Simplify the game by capturing on e8!", "solution": ["e2e8"], "hint": "Rxe8#.", "successExplanation": "Simplification delivers checkmate!"}]}, {"id": "level-7", "title": "Level 7: Playstyles & Rapid Mental Game", "concept": "Playing styles, clock management in 10+0/15+10, tilt control, and post-game analysis.", "lessons": [{"id": "7.1", "title": "7.1 Playing Styles (Tactical, Positional, Universal)", "concept": "Finding Your Identity on the Board", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Every chess player naturally leans toward one of three playing archetypes. Understanding your style helps you steer games toward positions you enjoy:</p>\n                        <div class='grid grid-cols-1 md:grid-cols-3 gap-3 text-xs'>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-red-400 font-bold mb-1'>Tactical / Aggressive</h4>\n                                <p>Thrives in open positions, gambits, opposite-side castling, and fierce king attacks. (Mikhail Tal, Garry Kasparov).</p>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-sky-400 font-bold mb-1'>Positional / Solid</h4>\n                                <p>Thrives in quiet, closed maneuvers, exploiting small pawn weaknesses and grinding down endgames. (Anatoly Karpov, Tigran Petrosian).</p>\n                            </div>\n                            <div class='bg-slate-800 p-3 rounded-lg border border-slate-700'>\n                                <h4 class='text-emerald-400 font-bold mb-1'>Universal</h4>\n                                <p>Plays whatever the position demands without bias \u2014 attacking when necessary, defending calmly when required. (Magnus Carlsen, Bobby Fischer).</p>\n                            </div>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4", "demoArrows": [["f3", "g5", "red"], ["c4", "f7", "red"]], "practice": {"fen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4", "side": "w", "objective": "For aggressive tactical players: Launch the Fried Liver probe! Move your Knight to g5 to target the f7 pawn.", "solution": ["f3g5"], "hints": ["Move knight from f3 to g5.", "Ng5 teams up with Bc4 to threaten f7."], "explanation": "4.Ng5 enters sharp tactical waters, immediately creating concrete calculation challenges for Black.", "arrows": [["f3", "g5", "emerald"], ["c4", "f7", "red"]]}, "test": {"fen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/2N2N2/PPPP1PPP/R1BQK2R b KQkq - 5 4", "side": "b", "prompt": "Solid positional play: Black neutralizes White's bishop pair and castles calmly. Play Bc5 to mirror development!", "solution": ["f8c5"], "hints": ["Develop dark-squared bishop to c5.", "Bc5 brings out Black's final minor piece."], "wrongFeedback": "Bc5 maintains central balance and prepares kingside castling.", "successExplanation": "Solid positional development! Both sides have developed harmoniously."}}, {"id": "7.2", "title": "7.2 Time Management in Rapid (10+0 & 15+10)", "concept": "Pacing Your Moves Across Three Game Phases", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>In 10+0 or 15+10 Rapid, clock time is an active piece in your army. The #1 mistake beginners make is spending 3 minutes on move 4 and then having 30 seconds left for a complicated endgame.</p>\n                        <div class='bg-slate-800 p-3 rounded-lg border border-slate-700 text-xs space-y-2'>\n                            <h4 class='text-amber-400 font-bold'>The 3-Phase Rapid Clock Formula:</h4>\n                            <p><strong>1. Moves 1 to 10 (Opening):</strong> Spend only 5\u201315 seconds per move. Rely on opening principles; do not calculate every theoretical sideline.</p>\n                            <p><strong>2. Moves 11 to 25 (Middlegame):</strong> Spend 1 to 2 minutes on <em>critical decision points</em> (initiating a trade, launching a pawn break, or facing a sacrifice).</p>\n                            <p><strong>3. Moves 26+ (Endgame):</strong> Play deliberately. If playing with increment (e.g. +10 sec), every move gives you back time to breathe!</p>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqk2r/pppp1ppp/2n2n2/4p3/1bB1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 4 5", "demoArrows": [["e1", "g1", "emerald"]], "practice": {"fen": "r1bqk2r/pppp1ppp/2n2n2/4p3/1bB1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 4 5", "side": "w", "objective": "Routine opening phase: Don't burn clock! Play the instinctive, principled move: Castle kingside (O-O) in under 5 seconds.", "solution": ["e1g1"], "hints": ["Castle kingside: e1 to g1.", "Castling is fast, principled, and saves clock."], "explanation": "Castling instinctively in the opening saves precious clock minutes for the complicated middlegame.", "arrows": [["e1", "g1", "emerald"]]}, "test": {"fen": "r4rk1/ppp2ppp/2n5/8/8/2B5/PPP2PPP/R4RK1 w - - 0 14", "side": "w", "prompt": "Middlegame transition: Play the active developing move Rad1 in 5 seconds to control the open file!", "solution": ["a1d1"], "hints": ["Move a1 rook to d1.", "Centralize your rooks quickly."], "wrongFeedback": "Rad1 is natural, fast, and claims the only open file on the board.", "successExplanation": "Swift and accurate! Pacing your time keeps you calm under pressure."}}, {"id": "7.3", "title": "7.3 Tilt Control & Rating Hygiene", "concept": "Psychological Resilience and the 2-Loss Rule", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'><strong>Tilt</strong> is an emotional state where frustration from a loss causes you to play recklessly, lose more games, and spiral down hundreds of rating points.</p>\n                        <div class='bg-red-950/40 border border-red-500/30 p-3 rounded-lg text-xs space-y-2'>\n                            <h4 class='text-red-400 font-bold'>The Ironclad 2-Loss Rule:</h4>\n                            <p><strong>If you lose TWO consecutive games in a session, close the app immediately.</strong></p>\n                            <p>Never 'revenge queue.' When you are tilted, your board vision drops by 50%, you miss basic CCT checks, and you blunder pieces. Take a 30-minute break, stretch, drink water, and return with fresh eyes.</p>\n                        </div>\n                    </div>\n                ", "demoFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "demoArrows": [["e2", "e4", "emerald"]], "practice": {"fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "side": "w", "objective": "A fresh, calm mind starts with a principled foundation. Open with 1.e4 with full focus and composure.", "solution": ["e2e4"], "hints": ["Play 1.e4.", "Start fresh."], "explanation": "Playing with a calm, objective mindset is worth 200 rating points.", "arrows": [["e2", "e4", "emerald"]]}, "test": {"fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3", "side": "w", "prompt": "Maintain emotional discipline: play 3.Bc4 (Italian Game) without rushing or getting impatient!", "solution": ["f1c4"], "hints": ["Develop bishop to c4.", "Stay calm and stick to your preparation."], "wrongFeedback": "Sticking to your opening repertoire prevents tilt and builds lasting confidence.", "successExplanation": "Solid and disciplined! You have conquered the mental game."}}, {"id": "7.4", "title": "7.4 Post-Game Analysis Protocol", "concept": "How Real Grandmasters Learn From Mistakes", "theory": "\n                    <div class='space-y-4 text-slate-300'>\n                        <p class='leading-relaxed'>Playing 1,000 games without reviewing them will not make you better. Reviewing 50 games properly will skyrocket your Elo.</p>\n                        <div class='bg-slate-800 p-3 rounded-lg border border-slate-700 text-xs space-y-2'>\n                            <h4 class='text-sky-400 font-bold'>The 3-Step Review Protocol:</h4>\n                            <p><strong>Step 1: Review WITHOUT the Engine First.</strong> Ask yourself: <em>\"Where did the game turn? Where did I feel uncomfortable or confused?\"</em></p>\n                            <p><strong>Step 2: Check the Engine.</strong> Identify the single move where the evaluation swung wildly from winning to losing.</p>\n                            <p><strong>Step 3: Categorize the Mistake.</strong> Was it a missed CCT? A loose piece (LPDO)? Time pressure? Catalog it so you never repeat it!</p>\n                        </div>\n                    </div>\n                ", "demoFen": "r1bqkb1r/pppp1ppp/2n5/4p3/3Pn3/2N2N2/PPP1PPPP/R1BQKB1R w KQkq - 0 5", "demoArrows": [["c3", "e4", "emerald"]], "practice": {"fen": "r1bqkb1r/pppp1ppp/2n5/4p3/3Pn3/2N2N2/PPP1PPPP/R1BQKB1R w KQkq - 0 5", "side": "w", "objective": "Review scenario: Spot the tactical capture Nxe4 that punished Black's early knight jump!", "solution": ["c3e4"], "hints": ["Capture knight on e4: Nxe4.", "Eliminates the overextended piece."], "explanation": "Post-game review shows that Black's Ne4 was a mistake that White properly punished.", "arrows": [["c3", "e4", "emerald"]]}, "test": {"fen": "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", "side": "w", "prompt": "Final test of the academy: Convert the back-rank vulnerability into a championship win with Re8#!", "solution": ["e1e8"], "hints": ["Play Re8#.", "Back-rank checkmate."], "wrongFeedback": "Re8# is checkmate! Congratulations on mastering the course.", "successExplanation": "CHECKMATE! You have completed the 7 levels of the Chess Academy!"}}], "exam": [{"id": "ex-7-1", "fen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4", "side": "w", "prompt": "Master Exam 1 of 4: Launch the tactical probe Ng5 targeting f7!", "solution": ["f3g5"], "hint": "Move knight to g5.", "successExplanation": "Tactical aggression initiated!"}, {"id": "ex-7-2", "fen": "r1bqk2r/pppp1ppp/2n2n2/4p3/1bB1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 4 5", "side": "w", "prompt": "Master Exam 2 of 4: Rapid time management: castle kingside in rhythm!", "solution": ["e1g1"], "hint": "Castle kingside (O-O).", "successExplanation": "Paced and principled castling!"}, {"id": "ex-7-3", "fen": "r4rk1/ppp2ppp/2n5/8/8/2B5/PPP2PPP/R4RK1 w - - 0 14", "side": "w", "prompt": "Master Exam 3 of 4: Centralize your rook onto the d-file with Rad1!", "solution": ["a1d1"], "hint": "Move a1 rook to d1.", "successExplanation": "Open file controlled!"}, {"id": "ex-7-4", "fen": "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", "side": "w", "prompt": "Master Exam 4 of 4: Deliver the ultimate championship checkmate: Re8#!", "solution": ["e1e8"], "hint": "Deliver checkmate on e8.", "successExplanation": "CHAMPIONSHIP CHECKMATE DELIVERED! You have graduated from Level 7!"}]}];
+  </script>
+
+  <!-- APPLICATION SCRIPTS -->
+  <script>
+    /* =====================================================================
+       1. SOUND SYNTHESIZER (Web Audio API)
+       ===================================================================== */
+    const Sound = {
+      ctx: null,
+      muted: false,
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) this.ctx = new AudioContext();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      },
+      playTone(freq, type, duration, gainVal = 0.15) {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch (e) {}
+      },
+      move() { this.playTone(320, 'sine', 0.08, 0.2); },
+      capture() { this.playTone(180, 'triangle', 0.12, 0.25); },
+      check() {
+        this.playTone(600, 'sine', 0.12, 0.2);
+        setTimeout(() => this.playTone(850, 'sine', 0.2, 0.2), 80);
+      },
+      castle() {
+        this.playTone(300, 'sine', 0.08, 0.2);
+        setTimeout(() => this.playTone(400, 'sine', 0.1, 0.2), 90);
+      },
+      blunder() {
+        this.playTone(220, 'sawtooth', 0.18, 0.15);
+        setTimeout(() => this.playTone(160, 'sawtooth', 0.25, 0.15), 130);
+      },
+      success() {
+        [440, 554.37, 659.25, 880].forEach((n, i) => {
+          setTimeout(() => this.playTone(n, 'sine', 0.16, 0.18), i * 80);
+        });
+      }
+    };
+
+    /* =====================================================================
+       2. LOCAL STORAGE & BACKUP MANAGER
+       ===================================================================== */
+    
+    /* =====================================================================
+       1.1 IN-PAGE TOAST & DIALOG HELPERS (Replaces alert & confirm)
+       ===================================================================== */
+    const Toast = {
+      timeout: null,
+      show(message, type = 'info', duration = 3500) {
+        const el = document.getElementById('app-toast');
+        if (!el) return;
+        el.textContent = message;
+        el.className = `fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl font-medium text-xs flex items-center gap-2 border transition-all duration-300 ${
+          type === 'error' ? 'bg-red-950/95 border-red-500/50 text-red-200' :
+          type === 'success' ? 'bg-emerald-950/95 border-emerald-500/50 text-emerald-200' :
+          type === 'warning' ? 'bg-amber-950/95 border-amber-500/50 text-amber-200' :
+          'bg-slate-900/95 border-slate-700 text-slate-200'
+        }`;
+        el.classList.remove('hidden');
+        clearTimeout(this.timeout);
+        this.timeout = setTimeout(() => {
+          el.classList.add('hidden');
+        }, duration);
+      }
+    };
+
+    const ConfirmModal = {
+      show(message, onConfirm) {
+        const modal = document.getElementById('confirm-dialog-modal');
+        const msgEl = document.getElementById('confirm-dialog-msg');
+        const okBtn = document.getElementById('confirm-dialog-ok');
+        const cancelBtn = document.getElementById('confirm-dialog-cancel');
+        if (!modal) return;
+        msgEl.textContent = message;
+        modal.classList.remove('hidden');
+
+        const cleanup = () => {
+          modal.classList.add('hidden');
+          okBtn.onclick = null;
+          cancelBtn.onclick = null;
+        };
+
+        okBtn.onclick = () => {
+          cleanup();
+          if (onConfirm) onConfirm();
+        };
+        cancelBtn.onclick = () => {
+          cleanup();
+        };
+      }
+    };
+
+    const GameOverModal = {
+      show(title, desc, isWin = true) {
+        const modal = document.getElementById('game-over-modal');
+        const icon = document.getElementById('game-over-icon');
+        const titleEl = document.getElementById('game-over-title');
+        const descEl = document.getElementById('game-over-desc');
+        const rematchBtn = document.getElementById('game-over-rematch-btn');
+        const closeBtn = document.getElementById('game-over-close-btn');
+        if (!modal) return;
+
+        icon.textContent = isWin ? '🏆' : '⚔️';
+        titleEl.textContent = title;
+        descEl.textContent = desc;
+        modal.classList.remove('hidden');
+
+        rematchBtn.onclick = () => {
+          modal.classList.add('hidden');
+          App.startRapidGame();
+        };
+        closeBtn.onclick = () => {
+          modal.classList.add('hidden');
+        };
+      }
+    };
+
+    const Storage = {
+      KEY: 'chessforge_academy_v1',
+      data: {
+        currentLevelIndex: 0,
+        currentLessonIndex: 0,
+        currentPhase: 'lesson',
+        completedLessons: {},
+        examScores: {},
+        theme: 'emerald',
+        soundMuted: false,
+        arrowsEnabled: true,
+        evalBarEnabled: true,
+        rapidStats: { wins: 0, losses: 0, draws: 0 }
+      },
+      load() {
+        try {
+          const raw = localStorage.getItem(this.KEY);
+          if (raw) {
+            this.data = Object.assign(this.data, JSON.parse(raw));
+          }
+        } catch (e) {
+          console.warn('LocalStorage error:', e);
+        }
+        return this.data;
+      },
+      save() {
+        try {
+          localStorage.setItem(this.KEY, JSON.stringify(this.data));
+        } catch (e) {
+          console.warn('LocalStorage save error:', e);
+        }
+      },
+      exportJson() {
+        const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.data, null, 2));
+        const a = document.createElement('a');
+        a.setAttribute('href', str);
+        a.setAttribute('download', 'chessforge_progress_' + new Date().toISOString().slice(0,10) + '.json');
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      },
+      importJson(jsonString) {
+        try {
+          const parsed = JSON.parse(jsonString);
+          if (parsed && typeof parsed === 'object') {
+            this.data = Object.assign(this.data, parsed);
+            this.save();
+            return true;
+          }
+        } catch (e) {}
+        return false;
+      },
+      reset() {
+        try {
+          localStorage.removeItem(this.KEY);
+          location.reload();
+        } catch (e) {}
+      }
+    };
+
+    /* =====================================================================
+       3. CHESS AI ENGINE (7 Calibrated Tiers with Minimax & Alpha-Beta)
+       ===================================================================== */
+    const PieceValues = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+
+    const PST = {
+      p: [
+        [0,  0,  0,  0,  0,  0,  0,  0],
+        [50, 50, 50, 50, 50, 50, 50, 50],
+        [10, 10, 20, 30, 30, 20, 10, 10],
+        [5,  5, 10, 25, 25, 10,  5,  5],
+        [0,  0,  0, 20, 20,  0,  0,  0],
+        [5, -5,-10,  0,  0,-10, -5,  5],
+        [5, 10, 10,-20,-20, 10, 10,  5],
+        [0,  0,  0,  0,  0,  0,  0,  0]
+      ],
+      n: [
+        [-50,-40,-30,-30,-30,-30,-40,-50],
+        [-40,-20,  0,  0,  0,  0,-20,-40],
+        [-30,  0, 10, 15, 15, 10,  0,-30],
+        [-30,  5, 15, 20, 20, 15,  5,-30],
+        [-30,  0, 15, 20, 20, 15,  0,-30],
+        [-30,  5, 10, 15, 15, 10,  5,-30],
+        [-40,-20,  0,  5,  5,  0,-20,-40],
+        [-50,-40,-30,-30,-30,-30,-40,-50]
+      ],
+      b: [
+        [-20,-10,-10,-10,-10,-10,-10,-20],
+        [-10,  0,  0,  0,  0,  0,  0,-10],
+        [-10,  0,  5, 10, 10,  5,  0,-10],
+        [-10,  5,  5, 10, 10,  5,  5,-10],
+        [-10,  0, 10, 10, 10, 10,  0,-10],
+        [-10, 10, 10, 10, 10, 10, 10,-10],
+        [-10,  5,  0,  0,  0,  0,  5,-10],
+        [-20,-10,-10,-10,-10,-10,-10,-20]
+      ],
+      r: [
+        [0,  0,  0,  0,  0,  0,  0,  0],
+        [5, 10, 10, 10, 10, 10, 10,  5],
+        [-5,  0,  0,  0,  0,  0,  0, -5],
+        [-5,  0,  0,  0,  0,  0,  0, -5],
+        [-5,  0,  0,  0,  0,  0,  0, -5],
+        [-5,  0,  0,  0,  0,  0,  0, -5],
+        [-5,  0,  0,  0,  0,  0,  0, -5],
+        [0,  0,  0,  5,  5,  0,  0,  0]
+      ],
+      q: [
+        [-20,-10,-10, -5, -5,-10,-10,-20],
+        [-10,  0,  0,  0,  0,  0,  0,-10],
+        [-10,  0,  5,  5,  5,  5,  0,-10],
+        [-5,  0,  5,  5,  5,  5,  0, -5],
+        [0,  0,  5,  5,  5,  5,  0, -5],
+        [-10,  5,  5,  5,  5,  5,  0,-10],
+        [-10,  0,  5,  0,  0,  0,  0,-10],
+        [-20,-10,-10, -5, -5,-10,-10,-20]
+      ],
+      k: [
+        [-30,-40,-40,-50,-50,-40,-40,-30],
+        [-30,-40,-40,-50,-50,-40,-40,-30],
+        [-30,-40,-40,-50,-50,-40,-40,-30],
+        [-30,-40,-40,-50,-50,-40,-40,-30],
+        [-20,-30,-30,-40,-40,-30,-30,-20],
+        [-10,-20,-20,-20,-20,-20,-20,-10],
+        [20, 20,  0,  0,  0,  0, 20, 20],
+        [20, 30, 10,  0,  0, 10, 30, 20]
+      ]
+    };
+
+    function evaluateBoard(game) {
+      if (game.in_checkmate()) {
+        return game.turn() === 'w' ? -99999 : 99999;
+      }
+      if (game.in_draw() || game.in_stalemate()) {
+        return 0;
+      }
+
+      let score = 0;
+      const board = game.board();
+
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const piece = board[r][c];
+          if (!piece) continue;
+
+          const val = PieceValues[piece.type] || 0;
+          const pstTable = PST[piece.type];
+          let posVal = 0;
+
+          if (pstTable) {
+            posVal = piece.color === 'w' ? pstTable[r][c] : pstTable[7 - r][c];
+          }
+
+          if (piece.color === 'w') {
+            score += val + posVal;
+          } else {
+            score -= (val + posVal);
+          }
+        }
+      }
+
+      return score;
+    }
+
+    function getBestMove(game, level) {
+      const moves = game.moves({ verbose: true });
+      if (!moves.length) return null;
+
+      // Level 1: Dumbass (~300 Elo) - 75% random, blunders pieces
+      if (level === 1) {
+        if (Math.random() < 0.75) {
+          return moves[Math.floor(Math.random() * moves.length)];
+        }
+        // greedy 1-move capture
+        const captures = moves.filter(m => m.captured);
+        return captures.length ? captures[Math.floor(Math.random() * captures.length)] : moves[0];
+      }
+
+      // Level 2: Novice (~600 Elo) - 40% random, greedy captures
+      if (level === 2) {
+        if (Math.random() < 0.40) {
+          return moves[Math.floor(Math.random() * moves.length)];
+        }
+      }
+
+      // Level 3: Casual (~900 Elo) - Depth 1 evaluation with 15% random blunder
+      if (level === 3) {
+        if (Math.random() < 0.15) {
+          return moves[Math.floor(Math.random() * moves.length)];
+        }
+      }
+
+      // Minimax Search Depths based on Level
+      const depth = level <= 3 ? 1 : level === 4 ? 2 : level === 5 ? 3 : 4;
+      const isMaximizing = game.turn() === 'w';
+
+      let bestScore = isMaximizing ? -Infinity : Infinity;
+      let bestMove = moves[0];
+
+      // Move ordering: evaluate captures and checks first
+      moves.sort((a, b) => {
+        let scoreA = a.captured ? (PieceValues[a.captured] - PieceValues[a.piece]) : 0;
+        let scoreB = b.captured ? (PieceValues[b.captured] - PieceValues[b.piece]) : 0;
+        return scoreB - scoreA;
+      });
+
+      for (let i = 0; i < moves.length; i++) {
+        game.move(moves[i]);
+        const score = minimax(game, depth - 1, -Infinity, Infinity, !isMaximizing);
+        game.undo();
+
+        if (isMaximizing) {
+          if (score > bestScore) {
+            bestScore = score;
+            bestMove = moves[i];
+          }
+        } else {
+          if (score < bestScore) {
+            bestScore = score;
+            bestMove = moves[i];
+          }
+        }
+      }
+
+      return bestMove;
+    }
+
+    function minimax(game, depth, alpha, beta, isMaximizing) {
+      if (depth === 0 || game.game_over()) {
+        return evaluateBoard(game);
+      }
+
+      const moves = game.moves({ verbose: true });
+      if (isMaximizing) {
+        let maxEval = -Infinity;
+        for (let i = 0; i < moves.length; i++) {
+          game.move(moves[i]);
+          const evalScore = minimax(game, depth - 1, alpha, beta, false);
+          game.undo();
+          maxEval = Math.max(maxEval, evalScore);
+          alpha = Math.max(alpha, evalScore);
+          if (beta <= alpha) break; // Alpha-beta cutoff
+        }
+        return maxEval;
+      } else {
+        let minEval = Infinity;
+        for (let i = 0; i < moves.length; i++) {
+          game.move(moves[i]);
+          const evalScore = minimax(game, depth - 1, alpha, beta, true);
+          game.undo();
+          minEval = Math.min(minEval, evalScore);
+          beta = Math.min(beta, evalScore);
+          if (beta <= alpha) break; // Alpha-beta cutoff
+        }
+        return minEval;
+      }
+    }
+
+    /* =====================================================================
+       4. IN-GAME COACH & BLUNDER ADVISOR
+       ===================================================================== */
+    const Coach = {
+      analyze(game, userColor = 'w') {
+        if (game.in_check()) {
+          return "ALERT: Your King is in CHECK! You must move the king, block the line of sight, or capture the checking piece immediately.";
+        }
+        if (game.in_checkmate()) {
+          return "Checkmate! The game is over.";
+        }
+        if (game.in_stalemate()) {
+          return "Stalemate! No legal moves remain. The game is a draw.";
+        }
+
+        const history = game.history();
+        const moveCount = history.length;
+
+        // Opening tips (first 10 moves)
+        if (moveCount < 6) {
+          return "Opening Phase: Control the center with your e/d pawns and develop your knights before your bishops!";
+        } else if (moveCount < 12) {
+          return "King Safety: Don't delay castling! Get your King behind a wall of pawns before opening the center.";
+        }
+
+        // Scan for loose pieces
+        const board = game.board();
+        let loosePieces = [];
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const p = board[r][c];
+            if (p && p.color === userColor && p.type !== 'k') {
+              // check if it has attackers
+              const sq = String.fromCharCode(97 + c) + (8 - r);
+              // scan if safe
+            }
+          }
+        }
+
+        return "CCT Reminder: Before you move, scan opponent Checks, Captures, and Threats. Protect any hanging pieces!";
+      }
+    };
+
+    /* =====================================================================
+       5. INTERACTIVE BOARD CONTROLLER
+       ===================================================================== */
+    class ChessBoardUI {
+      constructor(containerId, svgOverlayId, options = {}) {
+        this.container = document.getElementById(containerId);
+        this.svgOverlay = document.getElementById(svgOverlayId);
+        this.flipped = false;
+        this.selectedSquare = null;
+        this.highlightSquares = [];
+        this.arrows = [];
+        this.showArrows = true;
+        this.onMove = options.onMove || null;
+        this.dragStartSquare = null;
+        this.arrowDragStart = null;
+        this.game = null;
+      }
+
+      setGame(game, flipped = false) {
+        this.game = game;
+        this.flipped = flipped;
+        this.selectedSquare = null;
+        this.render();
+      }
+
+      setArrows(arrows) {
+        this.arrows = arrows || [];
+        this.renderArrows();
+      }
+
+      clearArrows() {
+        this.arrows = [];
+        this.renderArrows();
+      }
+
+      render() {
+        if (!this.container || !this.game) return;
+        this.container.innerHTML = '';
+
+        const board = this.game.board();
+        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+        const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
+
+        const rRange = this.flipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
+        const fRange = this.flipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
+
+        const lastMove = this.game.history({ verbose: true }).slice(-1)[0];
+        const inCheck = this.game.in_check();
+        const turn = this.game.turn();
+
+        for (let ri = 0; ri < 8; ri++) {
+          const r = rRange[ri];
+          for (let fi = 0; fi < 8; fi++) {
+            const f = fRange[fi];
+            const sqName = files[f] + ranks[r];
+            const isLight = (r + f) % 2 === 0;
+
+            const sqDiv = document.createElement('div');
+            sqDiv.dataset.square = sqName;
+            sqDiv.className = `relative flex items-center justify-center cursor-pointer transition-colors ${isLight ? 'square-light' : 'square-dark'}`;
+
+            // Highlight last move
+            if (lastMove && (lastMove.from === sqName || lastMove.to === sqName)) {
+              sqDiv.style.backgroundColor = isLight ? '#f7ec74' : '#dcd45b';
+            }
+
+            // Highlight selected square
+            if (this.selectedSquare === sqName) {
+              sqDiv.style.backgroundColor = 'rgba(247, 236, 116, 0.85)';
+            }
+
+            // Coordinate labels
+            if ((this.flipped ? ri === 0 : ri === 7)) {
+              const fileLbl = document.createElement('span');
+              fileLbl.className = 'absolute right-1 bottom-0.5 text-[9px] font-bold opacity-60 pointer-events-none select-none';
+              fileLbl.textContent = files[f];
+              sqDiv.appendChild(fileLbl);
+            }
+            if ((this.flipped ? fi === 7 : fi === 0)) {
+              const rankLbl = document.createElement('span');
+              rankLbl.className = 'absolute left-1 top-0.5 text-[9px] font-bold opacity-60 pointer-events-none select-none';
+              rankLbl.textContent = ranks[r];
+              sqDiv.appendChild(rankLbl);
+            }
+
+            // Render Piece if present
+            const piece = board[r][f];
+            if (piece) {
+              const symbol = piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase();
+              const pieceEl = document.createElement('div');
+              pieceEl.className = 'w-[84%] h-[84%] flex items-center justify-center pointer-events-none select-none drop-shadow';
+
+              // King in check highlight
+              if (piece.type === 'k' && piece.color === turn && inCheck) {
+                sqDiv.classList.add('in-check');
+              }
+
+              pieceEl.innerHTML = `<svg viewBox="0 0 45 45" class="w-full h-full"><use href="#piece-${symbol}"/></svg>`;
+              sqDiv.appendChild(pieceEl);
+            }
+
+            // Move target dot / capture ring
+            if (this.selectedSquare) {
+              const legalMoves = this.game.moves({ square: this.selectedSquare, verbose: true });
+              const isTarget = legalMoves.some(m => m.to === sqName);
+              if (isTarget) {
+                const targetMarker = document.createElement('div');
+                if (piece) {
+                  targetMarker.className = 'absolute inset-0 rounded-full border-4 border-red-500/60 pointer-events-none';
+                } else {
+                  targetMarker.className = 'w-3 h-3 rounded-full bg-slate-900/40 pointer-events-none';
+                }
+                sqDiv.appendChild(targetMarker);
+              }
+            }
+
+            // Attach Click Listeners
+            sqDiv.addEventListener('click', (e) => this.handleSquareClick(sqName));
+
+            // Attach Right-Click Arrow Drawing
+            sqDiv.addEventListener('contextmenu', (e) => e.preventDefault());
+            sqDiv.addEventListener('mousedown', (e) => {
+              if (e.button === 2) {
+                this.arrowDragStart = sqName;
+              }
+            });
+            sqDiv.addEventListener('mouseup', (e) => {
+              if (e.button === 2 && this.arrowDragStart) {
+                if (this.arrowDragStart !== sqName) {
+                  this.arrows.push([this.arrowDragStart, sqName, 'emerald']);
+                  this.renderArrows();
+                }
+                this.arrowDragStart = null;
+              }
+            });
+
+            this.container.appendChild(sqDiv);
+          }
+        }
+
+        this.renderArrows();
+      }
+
+      handleSquareClick(sqName) {
+        if (!this.selectedSquare) {
+          const piece = this.game.get(sqName);
+          if (piece && piece.color === this.game.turn()) {
+            this.selectedSquare = sqName;
+            this.render();
+          }
+        } else {
+          // Attempt move
+          if (this.selectedSquare === sqName) {
+            this.selectedSquare = null;
+            this.render();
+            return;
+          }
+
+          const moveAttempt = {
+            from: this.selectedSquare,
+            to: sqName,
+            promotion: 'q' // default auto-promote to Queen
+          };
+
+          const move = this.game.move(moveAttempt);
+          if (move) {
+            this.selectedSquare = null;
+            if (move.captured) Sound.capture();
+            else if (move.flags.includes('k') || move.flags.includes('q')) Sound.castle();
+            else Sound.move();
+
+            if (this.game.in_check()) Sound.check();
+
+            this.render();
+            if (this.onMove) this.onMove(move);
+          } else {
+            // maybe clicked another friendly piece
+            const piece = this.game.get(sqName);
+            if (piece && piece.color === this.game.turn()) {
+              this.selectedSquare = sqName;
+              this.render();
+            } else {
+              this.selectedSquare = null;
+              this.render();
+            }
+          }
+        }
+      }
+
+      renderArrows() {
+        if (!this.svgOverlay) return;
+        this.svgOverlay.innerHTML = '';
+        if (!this.showArrows || !this.arrows.length) return;
+
+        const rect = this.container.getBoundingClientRect();
+        const sqSize = rect.width / 8;
+
+        this.arrows.forEach(([from, to, color = 'emerald']) => {
+          const fromCoord = this.sqToPoint(from, sqSize);
+          const toCoord = this.sqToPoint(to, sqSize);
+
+          if (!fromCoord || !toCoord) return;
+
+          // Shorten arrow slightly so marker doesn't overlap piece center
+          const dx = toCoord.x - fromCoord.x;
+          const dy = toCoord.y - fromCoord.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < 10) return;
+
+          const shorten = sqSize * 0.28;
+          const endX = toCoord.x - (dx / dist) * shorten;
+          const endY = toCoord.y - (dy / dist) * shorten;
+
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', fromCoord.x);
+          line.setAttribute('y1', fromCoord.y);
+          line.setAttribute('x2', endX);
+          line.setAttribute('y2', endY);
+          line.setAttribute('stroke', color === 'red' ? '#ef4444' : color === 'amber' ? '#f59e0b' : color === 'sky' ? '#38bdf8' : '#10b981');
+          line.setAttribute('stroke-width', '6');
+          line.setAttribute('stroke-linecap', 'round');
+          line.setAttribute('opacity', '0.8');
+          line.setAttribute('marker-end', `url(#arrowhead-${color})`);
+
+          this.svgOverlay.appendChild(line);
+        });
+      }
+
+      sqToPoint(sq, sqSize) {
+        if (!sq || sq.length < 2) return null;
+        const file = sq.charCodeAt(0) - 97; // 0..7
+        const rank = 8 - parseInt(sq[1], 10); // 0..7
+
+        const col = this.flipped ? 7 - file : file;
+        const row = this.flipped ? 7 - rank : rank;
+
+        return {
+          x: col * sqSize + sqSize / 2,
+          y: row * sqSize + sqSize / 2
+        };
+      }
+    }
+
+    /* =====================================================================
+       6. APPLICATION STATE & CONTROLLER
+       ===================================================================== */
+    const App = {
+      curriculum: CURRICULUM,
+      currentLevelIdx: 0,
+      currentLessonIdx: 0,
+      currentPhase: 'lesson',
+      activeExamScenarioIdx: 0,
+      examScore: 0,
+
+      // Games
+      courseGame: new Chess(),
+      courseBoard: null,
+
+      rapidGame: new Chess(),
+      rapidBoard: null,
+      rapidClock: {
+        whiteTime: 600,
+        blackTime: 600,
+        increment: 0,
+        activeTimer: null,
+        activeSide: 'w'
+      },
+      rapidAiLevel: 3,
+      userSide: 'w',
+
+      init() {
+        Storage.load();
+        this.currentLevelIdx = Storage.data.currentLevelIndex || 0;
+        this.currentLessonIdx = Storage.data.currentLessonIndex || 0;
+        this.currentPhase = Storage.data.currentPhase || 'lesson';
+
+        // Initialize Boards
+        this.courseBoard = new ChessBoardUI('course-chessboard', 'course-arrows-svg', {
+          onMove: (move) => this.handleCourseUserMove(move)
+        });
+
+        this.rapidBoard = new ChessBoardUI('rapid-chessboard', 'rapid-arrows-svg', {
+          onMove: (move) => this.handleRapidUserMove(move)
+        });
+
+        this.bindEvents();
+        this.applyTheme(Storage.data.theme || 'emerald');
+        this.updateSoundIcons();
+        this.renderCurriculumPills();
+        this.loadCurrentModule();
+      },
+
+      bindEvents() {
+        // Navigation Tabs
+        document.getElementById('nav-course-btn').addEventListener('click', () => this.switchView('course'));
+        document.getElementById('nav-rapid-btn').addEventListener('click', () => this.switchView('rapid'));
+        document.getElementById('brand-home-btn').addEventListener('click', () => this.switchView('course'));
+
+        // Sound & Arrow Toggles
+        document.getElementById('toggle-sound-btn').addEventListener('click', () => {
+          Sound.muted = !Sound.muted;
+          Storage.data.soundMuted = Sound.muted;
+          Storage.save();
+          this.updateSoundIcons();
+        });
+
+        document.getElementById('toggle-arrows-btn').addEventListener('click', () => {
+          this.courseBoard.showArrows = !this.courseBoard.showArrows;
+          Storage.data.arrowsEnabled = this.courseBoard.showArrows;
+          Storage.save();
+          this.courseBoard.renderArrows();
+          document.getElementById('toggle-arrows-btn').classList.toggle('bg-emerald-950/60', this.courseBoard.showArrows);
+        });
+
+        // Settings Modal
+        document.getElementById('open-settings-btn').addEventListener('click', () => {
+          document.getElementById('settings-modal').classList.remove('hidden');
+        });
+        document.getElementById('close-settings-btn').addEventListener('click', () => {
+          document.getElementById('settings-modal').classList.add('hidden');
+        });
+        document.getElementById('close-modal-done-btn').addEventListener('click', () => {
+          document.getElementById('settings-modal').classList.add('hidden');
+        });
+
+        // Backup Export / Import
+        document.getElementById('export-json-btn').addEventListener('click', () => Storage.exportJson());
+        document.getElementById('import-json-input').addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              if (Storage.importJson(evt.target.result)) {
+                Toast.show('Progress imported successfully!', 'success');
+                location.reload();
+              } else {
+                Toast.show('Invalid backup JSON file.', 'error');
+              }
+            };
+            reader.readAsText(file);
+          }
+        });
+
+        document.getElementById('reset-all-progress-btn').addEventListener('click', () => {
+          ConfirmModal.show('Are you sure you want to reset all lesson progress and exam scores?', () => {
+            Storage.reset();
+          });
+        });
+
+        // Theme Pickers
+        document.querySelectorAll('.theme-choice-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const th = btn.dataset.theme;
+            this.applyTheme(th);
+            Storage.data.theme = th;
+            Storage.save();
+          });
+        });
+
+        // Course Board Controls
+        document.getElementById('course-flip-board-btn').addEventListener('click', () => {
+          this.courseBoard.flipped = !this.courseBoard.flipped;
+          this.courseBoard.render();
+        });
+        document.getElementById('course-undo-btn').addEventListener('click', () => {
+          this.courseGame.undo();
+          this.courseBoard.render();
+        });
+        document.getElementById('course-reset-btn').addEventListener('click', () => {
+          this.resetCurrentCoursePhase();
+        });
+
+        // Phase Tabs
+        document.querySelectorAll('.phase-tab-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const phase = btn.dataset.phase;
+            this.setPhase(phase);
+          });
+        });
+
+        // Rapid Controls
+        document.getElementById('rapid-new-game-btn').addEventListener('click', () => this.startRapidGame());
+        document.getElementById('rapid-resign-btn').addEventListener('click', () => {
+          ConfirmModal.show('Resign this match?', () => {
+            this.endRapidGame('Opponent wins by resignation.');
+          });
+        });
+        document.getElementById('rapid-ai-level-select').addEventListener('change', (e) => {
+          this.rapidAiLevel = parseInt(e.target.value, 10);
+          this.updateAiProfileHeader();
+        });
+        document.getElementById('side-white-btn').addEventListener('click', () => {
+          this.userSide = 'w';
+          document.getElementById('side-white-btn').className = 'px-2 py-0.5 rounded bg-emerald-600 text-white font-medium';
+          document.getElementById('side-black-btn').className = 'px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-medium hover:text-slate-200';
+          this.startRapidGame();
+        });
+        document.getElementById('side-black-btn').addEventListener('click', () => {
+          this.userSide = 'b';
+          document.getElementById('side-black-btn').className = 'px-2 py-0.5 rounded bg-emerald-600 text-white font-medium';
+          document.getElementById('side-white-btn').className = 'px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-medium hover:text-slate-200';
+          this.startRapidGame();
+        });
+        document.getElementById('toggle-eval-bar-chk').addEventListener('change', (e) => {
+          document.getElementById('eval-bar-wrapper').style.display = e.target.checked ? 'flex' : 'none';
+        });
+      },
+
+      updateSoundIcons() {
+        document.getElementById('sound-on-icon').classList.toggle('hidden', Sound.muted);
+        document.getElementById('sound-off-icon').classList.toggle('hidden', !Sound.muted);
+      },
+
+      applyTheme(theme) {
+        document.getElementById('course-chessboard').className = `chess-board-grid w-full h-full relative z-10 theme-${theme}`;
+        document.getElementById('rapid-chessboard').className = `chess-board-grid w-full h-full relative z-10 theme-${theme}`;
+      },
+
+      switchView(viewName) {
+        document.getElementById('course-view').classList.toggle('hidden', viewName !== 'course');
+        document.getElementById('rapid-view').classList.toggle('hidden', viewName !== 'rapid');
+
+        document.getElementById('nav-course-btn').className = viewName === 'course'
+          ? 'flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-medium transition-all bg-emerald-600 text-white shadow-sm'
+          : 'flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-medium text-slate-400 hover:text-slate-200 transition-all';
+
+        document.getElementById('nav-rapid-btn').className = viewName === 'rapid'
+          ? 'flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-medium transition-all bg-emerald-600 text-white shadow-sm'
+          : 'flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-medium text-slate-400 hover:text-slate-200 transition-all';
+
+        if (viewName === 'rapid' && !this.rapidGame.history().length) {
+          this.startRapidGame();
+        }
+      },
+
+      /* -------------------------------------------------------------
+         COURSE & CURRICULUM CONTROLLER
+         ------------------------------------------------------------- */
+      renderCurriculumPills() {
+        const container = document.getElementById('level-pills-container');
+        container.innerHTML = '';
+
+        let totalLessons = 0;
+        let completedCount = 0;
+
+        this.curriculum.forEach((lvl, idx) => {
+          totalLessons += lvl.lessons.length;
+          const isCurrent = idx === this.currentLevelIdx;
+          const isUnlocked = idx <= (this.getHighestUnlockedLevel());
+          const isPassed = !!Storage.data.examScores[lvl.id];
+
+          lvl.lessons.forEach(l => {
+            if (Storage.data.completedLessons[l.id]) completedCount++;
+          });
+
+          const pill = document.createElement('button');
+          pill.className = `flex-shrink-0 px-3.5 py-2 rounded-xl text-left border transition-all flex items-center gap-2.5 ${
+            isCurrent
+              ? 'bg-emerald-950/80 border-emerald-500/80 text-white shadow-md'
+              : isUnlocked
+                ? 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-700/60'
+                : 'bg-slate-950/40 border-slate-800 text-slate-600 cursor-not-allowed'
+          }`;
+
+          pill.innerHTML = `
+            <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+              isPassed ? 'bg-emerald-500 text-slate-950' : isCurrent ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-400'
+            }">
+              ${isPassed ? '✓' : idx + 1}
+            </div>
+            <div>
+              <div class="text-xs font-bold leading-tight">${lvl.title.split(':')[0]}</div>
+              <div class="text-[10px] text-slate-400 truncate max-w-[120px]">${lvl.title.split(':')[1] || ''}</div>
+            </div>
+          `;
+
+          if (isUnlocked) {
+            pill.addEventListener('click', () => {
+              this.currentLevelIdx = idx;
+              this.currentLessonIdx = 0;
+              this.currentPhase = 'lesson';
+              Storage.data.currentLevelIndex = idx;
+              Storage.data.currentLessonIndex = 0;
+              Storage.save();
+              this.renderCurriculumPills();
+              this.loadCurrentModule();
+            });
+          }
+
+          container.appendChild(pill);
+        });
+
+        // Update stats
+        const pct = Math.round((completedCount / (totalLessons || 1)) * 100);
+        document.getElementById('header-progress-badge').textContent = `${pct}%`;
+        document.getElementById('curriculum-completion-stats').textContent = `${completedCount} / ${totalLessons} Lessons`;
+        document.getElementById('current-level-title-badge').textContent = this.curriculum[this.currentLevelIdx].title;
+      },
+
+      getHighestUnlockedLevel() {
+        let maxLvl = 0;
+        this.curriculum.forEach((lvl, idx) => {
+          if (Storage.data.examScores[lvl.id]) {
+            maxLvl = Math.max(maxLvl, idx + 1);
+          }
+        });
+        return Math.min(maxLvl, this.curriculum.length - 1);
+      },
+
+      loadCurrentModule() {
+        const lvl = this.curriculum[this.currentLevelIdx];
+        if (!lvl) return;
+
+        // Render Lesson Tabs
+        const tabsBox = document.getElementById('lesson-tabs-container');
+        tabsBox.innerHTML = '';
+
+        lvl.lessons.forEach((les, idx) => {
+          const isSelected = this.currentPhase !== 'exam' && idx === this.currentLessonIdx;
+          const isDone = !!Storage.data.completedLessons[les.id];
+
+          const tab = document.createElement('button');
+          tab.className = `px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            isSelected
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+          }`;
+          tab.innerHTML = `<span>${les.title.split(' ')[0]}</span> ${isDone ? '<span class="text-emerald-300 text-[10px]">✓</span>' : ''}`;
+
+          tab.addEventListener('click', () => {
+            this.currentLessonIdx = idx;
+            this.currentPhase = 'lesson';
+            Storage.data.currentLessonIndex = idx;
+            Storage.data.currentPhase = 'lesson';
+            Storage.save();
+            this.loadCurrentModule();
+          });
+
+          tabsBox.appendChild(tab);
+        });
+
+        // Exam Tab
+        const examTab = document.createElement('button');
+        const isExamSelected = this.currentPhase === 'exam';
+        const isExamPassed = !!Storage.data.examScores[lvl.id];
+        examTab.className = `px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+          isExamSelected
+            ? 'bg-amber-600 text-white shadow-sm'
+            : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30'
+        }`;
+        examTab.innerHTML = `<span>🎓 Level Exam</span> ${isExamPassed ? '<span class="text-emerald-300">★</span>' : ''}`;
+        examTab.addEventListener('click', () => {
+          this.setPhase('exam');
+        });
+        tabsBox.appendChild(examTab);
+
+        this.setPhase(this.currentPhase);
+      },
+
+      setPhase(phase) {
+        this.currentPhase = phase;
+        Storage.data.currentPhase = phase;
+        Storage.save();
+
+        document.querySelectorAll('.phase-tab-btn').forEach(btn => {
+          const active = btn.dataset.phase === phase;
+          btn.className = active
+            ? 'px-2.5 py-1 rounded font-medium bg-emerald-600 text-white transition-all phase-tab-btn'
+            : 'px-2.5 py-1 rounded font-medium text-slate-400 hover:text-slate-200 transition-all phase-tab-btn';
+        });
+
+        // Per user request: Arrows are defaulted OFF in Exam mode to test real board vision
+        if (phase === 'exam') {
+          this.courseBoard.showArrows = false;
+        } else {
+          this.courseBoard.showArrows = Storage.data.arrowsEnabled !== false;
+        }
+
+        const lvl = this.curriculum[this.currentLevelIdx];
+        const les = lvl.lessons[this.currentLessonIdx];
+
+        const cardContent = document.getElementById('course-card-content');
+        const cardActions = document.getElementById('course-card-actions');
+        const feedbackBox = document.getElementById('course-feedback-box');
+        feedbackBox.className = 'hidden';
+
+        if (phase === 'lesson') {
+          // 1. THEORY PHASE
+          this.courseGame.load(les.demoFen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+          this.courseBoard.setGame(this.courseGame, les.practice ? les.practice.side === 'b' : false);
+          this.courseBoard.setArrows(les.demoArrows || []);
+
+          cardContent.innerHTML = `
+            <div>
+              <span class="text-xs uppercase font-bold tracking-wider text-emerald-400">Lesson ${les.id} • Theory</span>
+              <h2 class="text-xl font-bold text-slate-100 mt-0.5">${les.title}</h2>
+              <p class="text-xs text-slate-400 mt-1">${les.concept}</p>
+            </div>
+            <div class="text-sm leading-relaxed">${les.theory}</div>
+          `;
+
+          cardActions.innerHTML = `
+            <span class="text-xs text-slate-400">Study the diagram, then practice hands-on:</span>
+            <button id="btn-start-practice" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold text-white text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all">
+              <span>Start Guided Practice</span>
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          `;
+
+          document.getElementById('btn-start-practice').addEventListener('click', () => {
+            this.setPhase('practice');
+          });
+
+        } else if (phase === 'practice') {
+          // 2. GUIDED PRACTICE PHASE
+          const p = les.practice;
+          this.courseGame.load(p.fen);
+          this.courseBoard.setGame(this.courseGame, p.side === 'b');
+          this.courseBoard.setArrows(p.arrows || []);
+
+          cardContent.innerHTML = `
+            <div>
+              <span class="text-xs uppercase font-bold tracking-wider text-sky-400">Phase 2 • Guided Practice</span>
+              <h2 class="text-lg font-bold text-slate-100 mt-0.5">${les.title}</h2>
+            </div>
+            <div class="bg-sky-950/40 border border-sky-500/30 rounded-xl p-4">
+              <h4 class="text-sky-300 font-bold text-sm mb-1">🎯 Practice Objective:</h4>
+              <p class="text-xs text-slate-200 leading-relaxed">${p.objective}</p>
+            </div>
+            <div class="bg-slate-800/80 rounded-xl p-3 border border-slate-700 text-xs text-slate-300 space-y-1">
+              <span class="text-amber-400 font-bold">Why this works:</span>
+              <p>${p.explanation}</p>
+            </div>
+          `;
+
+          cardActions.innerHTML = `
+            <div class="flex items-center gap-2">
+              <button id="btn-practice-hint" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium">💡 Hint</button>
+              <button id="btn-practice-undo" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium">↺ Undo</button>
+            </div>
+            <button id="btn-start-test" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-semibold text-white text-xs flex items-center gap-1.5 shadow transition-all">
+              <span>Next: Lesson Test</span>
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          `;
+
+          document.getElementById('btn-practice-hint').addEventListener('click', () => {
+            Toast.show(p.hints ? p.hints[0] : 'Follow the objective described above.', 'warning', 4500);
+          });
+          document.getElementById('btn-practice-undo').addEventListener('click', () => {
+            this.courseGame.undo();
+            this.courseBoard.render();
+          });
+          document.getElementById('btn-start-test').addEventListener('click', () => {
+            this.setPhase('test');
+          });
+
+        } else if (phase === 'test') {
+          // 3. LESSON TEST PHASE (Trial and Error)
+          const t = les.test;
+          this.courseGame.load(t.fen);
+          this.courseBoard.setGame(this.courseGame, t.side === 'b');
+          this.courseBoard.clearArrows();
+
+          cardContent.innerHTML = `
+            <div>
+              <span class="text-xs uppercase font-bold tracking-wider text-amber-400">Phase 3 • Lesson Test</span>
+              <h2 class="text-lg font-bold text-slate-100 mt-0.5">Solve the Scenario</h2>
+            </div>
+            <div class="bg-amber-950/30 border border-amber-500/40 rounded-xl p-4">
+              <h4 class="text-amber-300 font-bold text-sm mb-1">Scenario Challenge:</h4>
+              <p class="text-xs text-slate-200 leading-relaxed">${t.prompt}</p>
+            </div>
+            <p class="text-xs text-slate-400 italic">
+              Make your move on the board. If incorrect, you'll receive precise feedback explaining why, and you can retry immediately.
+            </p>
+          `;
+
+          cardActions.innerHTML = `
+            <button id="btn-test-hint" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium">💡 Need a Hint?</button>
+            <button id="btn-test-reset" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium">↺ Retry Position</button>
+          `;
+
+          document.getElementById('btn-test-hint').addEventListener('click', () => {
+            Toast.show(t.hints ? t.hints[0] : 'Look closely at undefended pieces or king checks.', 'warning', 4500);
+          });
+          document.getElementById('btn-test-reset').addEventListener('click', () => {
+            this.courseGame.load(t.fen);
+            this.courseBoard.render();
+            feedbackBox.className = 'hidden';
+          });
+
+        } else if (phase === 'exam') {
+          // 4. LEVEL EXAM PHASE (Multi-Scenario Gauntlet without Labels)
+          this.renderExamScenario();
+        }
+      },
+
+      renderExamScenario() {
+        const lvl = this.curriculum[this.currentLevelIdx];
+        const scenarios = lvl.exam || [];
+        const scenario = scenarios[this.activeExamScenarioIdx] || scenarios[0];
+
+        this.courseGame.load(scenario.fen);
+        this.courseBoard.setGame(this.courseGame, scenario.side === 'b');
+        this.courseBoard.clearArrows();
+
+        const cardContent = document.getElementById('course-card-content');
+        const cardActions = document.getElementById('course-card-actions');
+        const feedbackBox = document.getElementById('course-feedback-box');
+        feedbackBox.className = 'hidden';
+
+        cardContent.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs uppercase font-bold tracking-wider text-purple-400">Mastery Assessment • Scenario ${this.activeExamScenarioIdx + 1} of ${scenarios.length}</span>
+              <span class="text-xs font-mono text-slate-400">Score: ${this.examScore} / ${scenarios.length}</span>
+            </div>
+            <h2 class="text-lg font-bold text-slate-100 mt-1">Level Final Exam</h2>
+          </div>
+          <div class="bg-purple-950/30 border border-purple-500/30 rounded-xl p-4">
+            <h4 class="text-purple-300 font-bold text-sm mb-1">${scenario.prompt}</h4>
+            <p class="text-xs text-slate-300 mt-1">
+              Notice: Category labels are intentionally hidden. Apply your board vision to find the optimal continuation!
+            </p>
+          </div>
+        `;
+
+        cardActions.innerHTML = `
+          <div class="flex items-center gap-2">
+            <button id="btn-exam-hint" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium">💡 Hint</button>
+            <button id="btn-exam-undo" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium">↺ Undo</button>
+          </div>
+          <button id="btn-exam-reset" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium">Reset</button>
+        `;
+
+        document.getElementById('btn-exam-hint').addEventListener('click', () => {
+          Toast.show(scenario.hint || 'Examine checks, captures, and threats.', 'warning', 4500);
+        });
+        document.getElementById('btn-exam-undo').addEventListener('click', () => {
+          this.courseGame.undo();
+          this.courseBoard.render();
+        });
+        document.getElementById('btn-exam-reset').addEventListener('click', () => {
+          this.courseGame.load(scenario.fen);
+          this.courseBoard.render();
+        });
+      },
+
+      handleCourseUserMove(move) {
+        const lvl = this.curriculum[this.currentLevelIdx];
+        const les = lvl.lessons[this.currentLessonIdx];
+        const moveUci = move.from + move.to;
+
+        const feedbackBox = document.getElementById('course-feedback-box');
+
+        if (this.currentPhase === 'practice') {
+          // Guided practice completion check
+          const sol = les.practice.solution;
+          const isCorrect = sol.includes(moveUci) || sol.includes(move.san);
+
+          if (isCorrect) {
+            Sound.success();
+            feedbackBox.className = 'rounded-xl p-4 border bg-emerald-950/50 border-emerald-500/40 text-emerald-200 text-xs space-y-1 block';
+            feedbackBox.innerHTML = `
+              <div class="font-bold flex items-center gap-1.5 text-emerald-400">
+                <span>✓ Move Completed!</span>
+              </div>
+              <p>${les.practice.explanation}</p>
+            `;
+          } else {
+            feedbackBox.className = 'rounded-xl p-4 border bg-amber-950/50 border-amber-500/40 text-amber-200 text-xs space-y-1 block';
+            feedbackBox.innerHTML = `
+              <div class="font-bold text-amber-300">Alternate Move Played:</div>
+              <p>Try following the exact practice objective to learn the intended pattern.</p>
+            `;
+          }
+
+        } else if (this.currentPhase === 'test') {
+          // Lesson test validation
+          const t = les.test;
+          const isCorrect = t.solution.some(s => s.toLowerCase() === moveUci || s.toLowerCase() === move.san.toLowerCase());
+
+          if (isCorrect) {
+            Sound.success();
+            Storage.data.completedLessons[les.id] = true;
+            Storage.save();
+            this.renderCurriculumPills();
+
+            feedbackBox.className = 'rounded-xl p-4 border bg-emerald-950/60 border-emerald-500/50 text-emerald-200 text-xs space-y-2 block';
+            feedbackBox.innerHTML = `
+              <div class="font-bold flex items-center gap-1.5 text-emerald-300 text-sm">
+                <span>★ TEST PASSED!</span>
+              </div>
+              <p>${t.successExplanation}</p>
+              <div class="pt-2">
+                <button id="btn-next-lesson-unlock" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs shadow">Proceed to Next Module →</button>
+              </div>
+            `;
+
+            document.getElementById('btn-next-lesson-unlock').addEventListener('click', () => {
+              if (this.currentLessonIdx < lvl.lessons.length - 1) {
+                this.currentLessonIdx++;
+                this.currentPhase = 'lesson';
+              } else {
+                this.currentPhase = 'exam';
+                this.activeExamScenarioIdx = 0;
+                this.examScore = 0;
+              }
+              Storage.data.currentLessonIndex = this.currentLessonIdx;
+              Storage.data.currentPhase = this.currentPhase;
+              Storage.save();
+              this.loadCurrentModule();
+            });
+
+          } else {
+            // Wrong move feedback
+            Sound.blunder();
+            this.courseGame.undo();
+            this.courseBoard.render();
+
+            feedbackBox.className = 'rounded-xl p-4 border bg-red-950/60 border-red-500/50 text-red-200 text-xs space-y-1 block';
+            feedbackBox.innerHTML = `
+              <div class="font-bold text-red-400 flex items-center gap-1.5">
+                <span>✗ Suboptimal Continuation</span>
+              </div>
+              <p>${t.wrongFeedback || 'That move does not solve the tactical challenge. Re-evaluate checks, captures, and threats and try again!'}</p>
+            `;
+          }
+
+        } else if (this.currentPhase === 'exam') {
+          // Exam Scenario validation
+          const scenarios = lvl.exam || [];
+          const scenario = scenarios[this.activeExamScenarioIdx];
+          const isCorrect = scenario.solution.some(s => s.toLowerCase() === moveUci || s.toLowerCase() === move.san.toLowerCase());
+
+          if (isCorrect) {
+            Sound.success();
+            this.examScore++;
+            feedbackBox.className = 'rounded-xl p-4 border bg-emerald-950/60 border-emerald-500/50 text-emerald-200 text-xs space-y-2 block';
+            feedbackBox.innerHTML = `
+              <div class="font-bold text-emerald-300 flex items-center gap-1.5">
+                <span>✓ Correct Solution!</span>
+              </div>
+              <p>${scenario.successExplanation}</p>
+              <div class="pt-1">
+                <button id="btn-next-exam-scenario" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs">Next Scenario →</button>
+              </div>
+            `;
+
+            document.getElementById('btn-next-exam-scenario').addEventListener('click', () => {
+              if (this.activeExamScenarioIdx < scenarios.length - 1) {
+                this.activeExamScenarioIdx++;
+                this.renderExamScenario();
+              } else {
+                this.finishExam();
+              }
+            });
+
+          } else {
+            Sound.blunder();
+            this.courseGame.undo();
+            this.courseBoard.render();
+
+            feedbackBox.className = 'rounded-xl p-4 border bg-red-950/60 border-red-500/50 text-red-200 text-xs space-y-1 block';
+            feedbackBox.innerHTML = `
+              <div class="font-bold text-red-400">Incorrect Choice:</div>
+              <p>That move fails to accomplish the tactical objective. Try another continuation or use a hint!</p>
+            `;
+          }
+        }
+      },
+
+      finishExam() {
+        const lvl = this.curriculum[this.currentLevelIdx];
+        const scenarios = lvl.exam || [];
+        const passed = this.examScore >= Math.ceil(scenarios.length * 0.7);
+
+        if (passed) {
+          Storage.data.examScores[lvl.id] = { score: this.examScore, total: scenarios.length };
+          Storage.save();
+          this.renderCurriculumPills();
+        }
+
+        const cardContent = document.getElementById('course-card-content');
+        const cardActions = document.getElementById('course-card-actions');
+        document.getElementById('course-feedback-box').className = 'hidden';
+
+        cardContent.innerHTML = `
+          <div class="text-center py-6 space-y-3">
+            <div class="w-16 h-16 mx-auto rounded-full ${passed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500' : 'bg-red-500/20 text-red-400 border border-red-500'} flex items-center justify-center text-3xl">
+              ${passed ? '🏆' : '📖'}
+            </div>
+            <h2 class="text-2xl font-bold text-slate-100">${passed ? 'Level Exam Passed!' : 'Exam Incomplete'}</h2>
+            <p class="text-sm text-slate-300">
+              You scored <strong>${this.examScore} / ${scenarios.length}</strong> in the ${lvl.title}.
+            </p>
+            <p class="text-xs text-slate-400 max-w-sm mx-auto">
+              ${passed ? 'Congratulations! You have demonstrated strong board vision and unlocked the next level of the academy.' : 'Review the lessons and retry the exam to achieve mastery.'}
+            </p>
+          </div>
+        `;
+
+        cardActions.innerHTML = `
+          <button id="btn-retry-exam" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">Retry Exam</button>
+          ${passed && this.currentLevelIdx < this.curriculum.length - 1 ? `
+            <button id="btn-next-level-unlock" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs shadow-lg shadow-emerald-500/30">Unlock Next Level →</button>
+          ` : ''}
+        `;
+
+        document.getElementById('btn-retry-exam').addEventListener('click', () => {
+          this.activeExamScenarioIdx = 0;
+          this.examScore = 0;
+          this.renderExamScenario();
+        });
+
+        const nextLvlBtn = document.getElementById('btn-next-level-unlock');
+        if (nextLvlBtn) {
+          nextLvlBtn.addEventListener('click', () => {
+            this.currentLevelIdx++;
+            this.currentLessonIdx = 0;
+            this.currentPhase = 'lesson';
+            Storage.data.currentLevelIndex = this.currentLevelIdx;
+            Storage.data.currentLessonIndex = 0;
+            Storage.save();
+            this.renderCurriculumPills();
+            this.loadCurrentModule();
+          });
+        }
+      },
+
+      resetCurrentCoursePhase() {
+        this.setPhase(this.currentPhase);
+      },
+
+      /* -------------------------------------------------------------
+         RAPID MOCK GAME CONTROLLER (AI SIMULATOR)
+         ------------------------------------------------------------- */
+      startRapidGame() {
+        if (this.rapidClock.activeTimer) {
+          clearInterval(this.rapidClock.activeTimer);
+        }
+
+        this.rapidGame.reset();
+        const timeConfig = document.getElementById('rapid-time-select').value.split(',').map(Number);
+        this.rapidClock.whiteTime = timeConfig[0];
+        this.rapidClock.blackTime = timeConfig[0];
+        this.rapidClock.increment = timeConfig[1] || 0;
+        this.rapidClock.activeSide = 'w';
+
+        this.rapidBoard.setGame(this.rapidGame, this.userSide === 'b');
+        this.updateRapidClockDisplays();
+        this.updateCapturedAndMaterial();
+        this.updateMoveLog();
+        this.updateEvalBar();
+
+        document.getElementById('coach-tip-text').textContent = Coach.analyze(this.rapidGame, this.userSide);
+
+        if (this.rapidClock.whiteTime > 0) {
+          this.startClockTimer();
+        }
+
+        // If user is Black, AI moves first
+        if (this.userSide === 'b') {
+          setTimeout(() => this.triggerAiMove(), 400);
+        }
+      },
+
+      startClockTimer() {
+        this.rapidClock.activeTimer = setInterval(() => {
+          if (this.rapidClock.whiteTime <= 0 && this.rapidClock.blackTime <= 0) return;
+
+          if (this.rapidClock.activeSide === 'w') {
+            this.rapidClock.whiteTime--;
+            if (this.rapidClock.whiteTime <= 0) {
+              this.endRapidGame('Black wins on time!');
+            }
+          } else {
+            this.rapidClock.blackTime--;
+            if (this.rapidClock.blackTime <= 0) {
+              this.endRapidGame('White wins on time!');
+            }
+          }
+          this.updateRapidClockDisplays();
+        }, 1000);
+      },
+
+      updateRapidClockDisplays() {
+        const fmt = (t) => {
+          if (t <= 0 && document.getElementById('rapid-time-select').value.startsWith('0')) return '∞';
+          const m = Math.floor(Math.max(0, t) / 60);
+          const s = Math.max(0, t) % 60;
+          return `${m}:${s < 10 ? '0' : ''}${s}`;
+        };
+
+        const whiteDisplay = this.userSide === 'w' ? document.getElementById('user-clock-display') : document.getElementById('ai-clock-display');
+        const blackDisplay = this.userSide === 'w' ? document.getElementById('ai-clock-display') : document.getElementById('user-clock-display');
+
+        whiteDisplay.textContent = fmt(this.rapidClock.whiteTime);
+        blackDisplay.textContent = fmt(this.rapidClock.blackTime);
+
+        // Turn indicator highlight
+        whiteDisplay.classList.toggle('border-emerald-500', this.rapidClock.activeSide === 'w');
+        blackDisplay.classList.toggle('border-indigo-500', this.rapidClock.activeSide === 'b');
+      },
+
+      handleRapidUserMove(move) {
+        if (this.rapidGame.game_over()) {
+          this.handleGameOver();
+          return;
+        }
+
+        // Add increment
+        if (this.userSide === 'w') {
+          this.rapidClock.whiteTime += this.rapidClock.increment;
+        } else {
+          this.rapidClock.blackTime += this.rapidClock.increment;
+        }
+
+        this.rapidClock.activeSide = this.rapidGame.turn();
+        this.updateRapidClockDisplays();
+        this.updateCapturedAndMaterial();
+        this.updateMoveLog();
+        this.updateEvalBar();
+
+        document.getElementById('coach-tip-text').textContent = Coach.analyze(this.rapidGame, this.userSide);
+
+        // AI Response Move
+        if (!this.rapidGame.game_over() && this.rapidGame.turn() !== this.userSide) {
+          const thinkDelay = Math.floor(Math.random() * 400) + 300;
+          setTimeout(() => this.triggerAiMove(), thinkDelay);
+        }
+      },
+
+      triggerAiMove() {
+        if (this.rapidGame.game_over()) return;
+
+        const bestMove = getBestMove(this.rapidGame, this.rapidAiLevel);
+        if (bestMove) {
+          const move = this.rapidGame.move(bestMove);
+          if (move) {
+            if (move.captured) Sound.capture();
+            else if (move.flags.includes('k') || move.flags.includes('q')) Sound.castle();
+            else Sound.move();
+
+            if (this.rapidGame.in_check()) Sound.check();
+
+            this.rapidBoard.render();
+
+            // Add increment
+            if (this.userSide === 'w') {
+              this.rapidClock.blackTime += this.rapidClock.increment;
+            } else {
+              this.rapidClock.whiteTime += this.rapidClock.increment;
+            }
+
+            this.rapidClock.activeSide = this.rapidGame.turn();
+            this.updateRapidClockDisplays();
+            this.updateCapturedAndMaterial();
+            this.updateMoveLog();
+            this.updateEvalBar();
+
+            document.getElementById('coach-tip-text').textContent = Coach.analyze(this.rapidGame, this.userSide);
+
+            if (this.rapidGame.game_over()) {
+              this.handleGameOver();
+            }
+          }
+        }
+      },
+
+      updateCapturedAndMaterial() {
+        const history = this.rapidGame.history({ verbose: true });
+        const capturedByWhite = [];
+        const capturedByBlack = [];
+
+        history.forEach(m => {
+          if (m.captured) {
+            if (m.color === 'w') capturedByWhite.push(m.captured);
+            else capturedByBlack.push(m.captured);
+          }
+        });
+
+        let whiteMat = capturedByWhite.reduce((sum, p) => sum + (PieceValues[p] || 0), 0);
+        let blackMat = capturedByBlack.reduce((sum, p) => sum + (PieceValues[p] || 0), 0);
+        let diff = (whiteMat - blackMat) / 100;
+
+        const renderPieceIcons = (pieces, color) => {
+          return pieces.map(p => {
+            const sym = color === 'w' ? p.toUpperCase() : p.toLowerCase();
+            return `<svg viewBox="0 0 45 45" class="w-4 h-4"><use href="#piece-${sym}"/></svg>`;
+          }).join('');
+        };
+
+        const userPiecesEl = document.getElementById('user-captured-pieces');
+        const userDiffEl = document.getElementById('user-material-diff');
+        const aiPiecesEl = document.getElementById('ai-captured-pieces');
+        const aiDiffEl = document.getElementById('ai-material-diff');
+
+        if (this.userSide === 'w') {
+          userPiecesEl.innerHTML = renderPieceIcons(capturedByWhite, 'b');
+          aiPiecesEl.innerHTML = renderPieceIcons(capturedByBlack, 'w');
+          userDiffEl.textContent = diff > 0 ? `+${diff}` : '';
+          aiDiffEl.textContent = diff < 0 ? `+${Math.abs(diff)}` : '';
+        } else {
+          userPiecesEl.innerHTML = renderPieceIcons(capturedByBlack, 'w');
+          aiPiecesEl.innerHTML = renderPieceIcons(capturedByWhite, 'b');
+          userDiffEl.textContent = diff < 0 ? `+${Math.abs(diff)}` : '';
+          aiDiffEl.textContent = diff > 0 ? `+${diff}` : '';
+        }
+      },
+
+      updateMoveLog() {
+        const history = this.rapidGame.history();
+        const table = document.getElementById('move-history-table');
+        document.getElementById('move-count-label').textContent = `${Math.ceil(history.length / 2)} Moves`;
+
+        if (!history.length) {
+          table.innerHTML = '<div class="py-2 text-center text-slate-500 italic">No moves played yet</div>';
+          return;
+        }
+
+        let html = '';
+        for (let i = 0; i < history.length; i += 2) {
+          const moveNum = (i / 2) + 1;
+          const wMove = history[i];
+          const bMove = history[i + 1] || '';
+          html += `
+            <div class="flex items-center py-1 text-slate-300">
+              <span class="w-8 text-slate-500 text-[11px]">${moveNum}.</span>
+              <span class="flex-1 font-semibold">${wMove}</span>
+              <span class="flex-1 font-semibold text-slate-400">${bMove}</span>
+            </div>
+          `;
+        }
+        table.innerHTML = html;
+        table.scrollTop = table.scrollHeight;
+      },
+
+      updateEvalBar() {
+        const score = evaluateBoard(this.rapidGame);
+        // Normalize score between -1000 and +1000 to 0%..100%
+        const clamped = Math.max(-1000, Math.min(1000, score));
+        const pct = Math.round(((clamped + 1000) / 2000) * 100);
+        document.getElementById('eval-bar-fill').style.height = `${pct}%`;
+      },
+
+      updateAiProfileHeader() {
+        const names = [
+          "Bot Dumbass", "Bot Novice", "Bot Casual", "Bot Apprentice", "Bot Intermediate", "Bot Advanced", "Bot Extreme"
+        ];
+        const elos = ["300 Elo", "600 Elo", "900 Elo", "1200 Elo", "1500 Elo", "1800 Elo", "2100+ Elo"];
+        document.getElementById('ai-name-label').textContent = names[this.rapidAiLevel - 1];
+        document.getElementById('ai-elo-badge').textContent = elos[this.rapidAiLevel - 1];
+      },
+
+      handleGameOver() {
+        if (this.rapidClock.activeTimer) clearInterval(this.rapidClock.activeTimer);
+
+        if (this.rapidGame.in_checkmate()) {
+          const winner = this.rapidGame.turn() === 'w' ? 'Black' : 'White';
+          const userWon = (winner === 'White' && this.userSide === 'w') || (winner === 'Black' && this.userSide === 'b');
+          if (userWon) {
+            Sound.success();
+            GameOverModal.show('VICTORY BY CHECKMATE!', `You defeated the Level ${this.rapidAiLevel} AI!`, true);
+          } else {
+            Sound.blunder();
+            GameOverModal.show('CHECKMATE', `Level ${this.rapidAiLevel} AI won the match.`, false);
+          }
+        } else if (this.rapidGame.in_draw()) {
+          GameOverModal.show('DRAW', 'Draw by repetition, 50-move rule, or insufficient material.', false);
+        } else if (this.rapidGame.in_stalemate()) {
+          GameOverModal.show('STALEMATE', 'Stalemate reached. Match ended in a draw.', false);
+        }
+      },
+
+      endRapidGame(reason) {
+        if (this.rapidClock.activeTimer) clearInterval(this.rapidClock.activeTimer);
+        GameOverModal.show('GAME CONCLUDED', reason, false);
+      }
+    };
+
+    // Auto-launch when DOM ready
+    window.addEventListener('DOMContentLoaded', () => {
+      App.init();
+    });
+  </script>
+</body>
+</html>
